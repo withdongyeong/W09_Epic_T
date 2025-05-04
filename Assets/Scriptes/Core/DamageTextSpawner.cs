@@ -14,10 +14,54 @@ public class DamageTextSpawner : MonoBehaviour
         DamageText damageText = obj.GetComponent<DamageText>();
         if (damageText != null)
         {
-            damageText.Setup(amount, strength, lifetime); // 여기!
+            damageText.Setup(amount, strength, DamageVisualType.Normal, StatusEffectType.None, lifetime);
         }
 
-        // 카메라 흔들기
+        ApplyShake(strength);
+    }
+
+    public void ShowStatusEffectDamage(int amount, StatusEffectType effectType, float lifetime = 0.8f)
+    {
+        if (damageTextPrefab == null) return;
+
+        DamageStrength strength = GetDamageStrength(amount);
+
+        GameObject obj = Instantiate(damageTextPrefab, transform.position, Quaternion.identity, transform);
+        DamageText damageText = obj.GetComponent<DamageText>();
+        if (damageText != null)
+        {
+            damageText.Setup(amount, strength, DamageVisualType.StatusEffect, effectType, lifetime);
+        }
+
+        ApplyShake(strength);
+    }
+
+    public void ShowHeal(int amount, StatusEffectType effectType, float lifetime = 0.8f)
+    {
+        if (damageTextPrefab == null) return;
+
+        GameObject obj = Instantiate(damageTextPrefab, transform.position, Quaternion.identity, transform);
+        DamageText damageText = obj.GetComponent<DamageText>();
+        if (damageText != null)
+        {
+            damageText.Setup(amount, DamageStrength.Low, DamageVisualType.Heal, effectType, lifetime);
+        }
+
+        // 회복은 따로 카메라 흔들 필요 없음
+    }
+
+    private DamageStrength GetDamageStrength(int amount)
+    {
+        if (amount <= 3333)
+            return DamageStrength.Low;
+        else if (amount <= 6666)
+            return DamageStrength.Medium;
+        else
+            return DamageStrength.High;
+    }
+
+    private void ApplyShake(DamageStrength strength)
+    {
         switch (strength)
         {
             case DamageStrength.Low:
@@ -31,16 +75,4 @@ public class DamageTextSpawner : MonoBehaviour
                 break;
         }
     }
-
-
-    private DamageStrength GetDamageStrength(int amount)
-    {
-        if (amount <= 3333)
-            return DamageStrength.Low;
-        else if (amount <= 6666)
-            return DamageStrength.Medium;
-        else
-            return DamageStrength.High;
-    }
-
 }

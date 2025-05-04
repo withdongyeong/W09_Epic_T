@@ -11,24 +11,72 @@ public class Character : MonoBehaviour
     public int hp;
     public int maxHp;
     public int speed;
+
+    public List<Skill> skills = new List<Skill>();
+    public List<StatusEffectData> activeStatusEffects = new List<StatusEffectData>();
     
-    public List<Skill> skills; // active + passive 혼합 스킬
-    public int poisonStacks;
-    public int bleedStacks;
     public RectTransform atbIconTransform;
     public bool isAlive => hp > 0;
-    public Vector3 originalPosition; // 처음 자기 자리
+    public Vector3 originalPosition;
 
     public TextMeshProUGUI atbText;
     public float atbGauge = 0f;
     public float atbSpeedMultiplier = 1f;
     public bool isEnemy;
 
+    private bool isActing = false;
+    private bool isAliveActionLoop = true;
+    public Queue<Func<IEnumerator>> actionQueue = new Queue<Func<IEnumerator>>();
+    [SerializeField] private TMP_Text statusEffectText; // 상태이상 표시용
+    
+    private static readonly Dictionary<StatusEffectType, (string emoji, string colorHex)> StatusEffectVisuals = new()
+    {
+        { StatusEffectType.Poison, ("☠️", "#80FF80") },
+        { StatusEffectType.Bleed, ("🩸", "#FF4040") },
+        { StatusEffectType.Burn, ("🔥", "#FFA500") },
+        { StatusEffectType.Shock, ("⚡", "#8080FF") },
+        { StatusEffectType.HealOverTime, ("💚", "#40FF40") },
+        { StatusEffectType.Shield, ("🛡️", "#00FFFF") }
+    };
 
+    public void UpdateStatusEffectUI()
+    {
+        if (statusEffectText == null) return;
+
+        string result = "";
+
+        foreach (var effect in activeStatusEffects)
+        {
+            if (effect.duration <= 0) continue;
+
+            if (StatusEffectVisuals.TryGetValue(effect.type, out var visual))
+            {
+                result += $"<color={visual.colorHex}>{visual.emoji} {effect.potency}/{effect.duration}</color>\n";
+
+            }
+            else
+            {
+                // 정의 안된 경우
+                result += $"{effect.type} {effect.potency}/{effect.duration}\n";
+            }
+        }
+
+        statusEffectText.text = result.TrimEnd(); // 마지막 개행 제거
+    }
+
+    private void Start()
+    {
+        StartCoroutine(ActionLoop());
+    }
 
     private void Update()
     {
         UpdateATBIcon();
+    }
+
+    private void OnDestroy()
+    {
+        isAliveActionLoop = false;
     }
 
     public void UpdateATBIcon()
@@ -36,7 +84,7 @@ public class Character : MonoBehaviour
         if (atbIconTransform != null)
         {
             float percent = atbGauge / 100f;
-            float moveRange = 500f; // 예시 이동 거리
+            float moveRange = 500f;
 
             atbIconTransform.anchoredPosition = new Vector2(
                 atbIconTransform.anchoredPosition.x,
@@ -44,6 +92,7 @@ public class Character : MonoBehaviour
             );
         }
     }
+
     private void OnMouseDown()
     {
         if (isEnemy && BattleManager.Instance != null)
@@ -52,151 +101,248 @@ public class Character : MonoBehaviour
         }
     }
 
-
-
-
-    
-    public void UseSkill(int skillIndex)
+    private IEnumerator ActionLoop()
     {
-        if (skillIndex < 0 || skillIndex >= skills.Count)
-            return;
-
-        Skill skill = skills[skillIndex];
-        if (skill != null && skill.skillType == SkillType.Active)
+        while (isAliveActionLoop)
         {
-            skill.Activate(this, BattleManager.Instance.playerTeam, BattleManager.Instance.enemyTeam);
+            if (!isActing && actionQueue.Count > 0)
+            {
+                var action = actionQueue.Dequeue();
+                isActing = true;
+                BattleManager.Instance.isSomeoneActing = true;
+                yield return StartCoroutine(action());
+                BattleManager.Instance.isSomeoneActing = false;
+                isActing = false;
+            }
+            else
+            {
+                yield return null;
+            }
         }
     }
 
-    public void BasicAttack(Character target)
+    public void EnqueueBasicAttack(Character target)
     {
-        
+        actionQueue.Enqueue(() => BasicAttack(target));
     }
 
-    public void ApplyDamage(int amount, bool isStatusDamage = false)
-    {
-        
-        // TODO 죽음처리는 나중에
-        // if (!isAlive)
-        //     return;
-        //
-        // hp -= amount;
-        // if (hp < 0)
-        //     hp = 0;
-
-        var spawner = GetComponentInChildren<DamageTextSpawner>();
-        if (spawner != null)
-        {
-            spawner.ShowDamage(amount, 0.7f); // <- 여기
-        }
-
-        // 추가로 사망처리 등 나중에
-    }
-
-
-
-    public void ApplyBuff(BuffType buff, int value, int duration)
-    {
-        
-    }
-
-    public void ApplyDebuff(DebuffType debuff, int value, int duration)
-    {
-        
-    }
-    
-
-
-    public IEnumerator AttackTarget(Character target)
+    private IEnumerator BasicAttack(Character target)
     {
         if (target == null || !target.isAlive)
             yield break;
 
-        BattleManager.Instance.isSomeoneActing = true;
-
-        bool isPlayer = BattleManager.Instance.playerTeam.Contains(this);
         Vector3 myAdvancePos = BattleManager.Instance.playerAdvancePoint.position;
         Vector3 enemyAdvancePos = BattleManager.Instance.enemyAdvancePoint.position;
 
-        // 1. 공격자와 피공격자 AdvancePoint로 순간이동
-        if (this == null || target == null) yield break;
-        transform.position = isPlayer ? myAdvancePos : enemyAdvancePos;
-        target.transform.position = isPlayer ? enemyAdvancePos : myAdvancePos;
+        transform.position = isEnemy ? enemyAdvancePos : myAdvancePos;
+        target.transform.position = isEnemy ? myAdvancePos : enemyAdvancePos;
 
-        // 2. 카메라 연출
         CameraManager.Instance.FocusBetweenPoints(transform.position, target.transform.position, 0.1f, 3.5f);
 
-        // 3. 움찔
         yield return new WaitForSeconds(0.1f);
-        if (this == null || target == null) yield break;
+
         Vector3 attackImpulse = (target.transform.position - transform.position).normalized * 0.5f;
         yield return MoveToImpulse(attackImpulse, 0.3f);
 
-        // 4. 데미지
-        if (this == null || target == null) yield break;
         DealDamage(target);
 
-        // 5. 데미지 기다림
         yield return new WaitForSeconds(0.7f);
 
-        // 6. 복귀
-        if (this == null || target == null) yield break;
+        yield return StartCoroutine(ApplyStatusEffectsEndOfTurn());
+
+        yield return StartCoroutine(WaitForAllDamageTexts()); // ⭐️ 여기 추가
+
         transform.position = originalPosition;
         target.transform.position = target.originalPosition;
 
-        // 7. 카메라 복귀
-        CameraManager.Instance.ZoomOut(0.3f);
+        foreach (var skill in skills)
+        {
+            if (skill.currentCooldown > 0)
+                skill.currentCooldown--;
+        }
 
-        BattleManager.Instance.isSomeoneActing = false;
+        CameraManager.Instance.ZoomOut(0.3f);
+    }
+    private IEnumerator WaitForAllDamageTexts()
+    {
+        float timeout = 2f;
+        float elapsed = 0f;
+
+        while (elapsed < timeout)
+        {
+            if (!BattleManager.Instance.IsAnyDamageTextActive())
+                yield break;
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
     }
 
 
+    public void InsertSkillToQueue(Func<IEnumerator> skillAction)
+    {
+        Queue<Func<IEnumerator>> newQueue = new Queue<Func<IEnumerator>>();
+        newQueue.Enqueue(skillAction);
+
+        while (actionQueue.Count > 0)
+        {
+            newQueue.Enqueue(actionQueue.Dequeue());
+        }
+
+        actionQueue = newQueue;
+    }
+
+    public void ApplyStatusEffect(StatusEffectData statusEffect)
+    {
+        var existing = activeStatusEffects.Find(e => e.type == statusEffect.type);
+        if (existing != null)
+        {
+            existing.potency += statusEffect.potency;
+            existing.duration += statusEffect.duration;
+        }
+        else
+        {
+            activeStatusEffects.Add(new StatusEffectData
+            {
+                type = statusEffect.type,
+                potency = statusEffect.potency,
+                duration = statusEffect.duration,
+                tickType = statusEffect.tickType
+            });
+        }
+
+        UpdateStatusEffectUI();
+    }
+
+    public IEnumerator ApplyStatusEffectsEndOfTurn()
+    {
+        List<StatusEffectData> expiredEffects = new List<StatusEffectData>();
+
+        foreach (var effect in activeStatusEffects)
+        {
+            if (effect.tickType != StatusEffectTickType.EndOfTurn)
+                continue;
+
+            // ⭐ 상태이상 효과를 적용
+            yield return StartCoroutine(ApplyStatusEffectImpact(effect));
+
+            // 지속시간 감소
+            effect.duration--;
+            if (effect.duration <= 0)
+            {
+                expiredEffects.Add(effect);
+            }
+        }
+        UpdateStatusEffectUI();
+
+        // 만료된 상태이상 제거
+        foreach (var expired in expiredEffects)
+        {
+            RemoveStatusEffect(expired.type);
+        }
+    }
+
+    private IEnumerator ApplyStatusEffectImpact(StatusEffectData effect)
+    {
+        switch (effect.type)
+        {
+            case StatusEffectType.Poison:
+            case StatusEffectType.Bleed:
+            case StatusEffectType.Burn:
+            case StatusEffectType.Shock:
+                ApplyDamage(effect.potency, StatusEffectSource.StatusDamage, effect.type);
+                LogManager.Instance.Log($"{characterName}이 {effect.type}로 {effect.potency} 피해!");
+                yield return new WaitForSeconds(0.3f);
+                break;
+
+            case StatusEffectType.HealOverTime:
+                ApplyHeal(effect.potency, effect.type);
+                LogManager.Instance.Log($"{characterName}이 {effect.type}로 {effect.potency} 히복!");
+                yield return new WaitForSeconds(0.3f);
+                break;
+
+            case StatusEffectType.Shield:
+                ApplyShield(effect.potency);
+                LogManager.Instance.Log($"{characterName}이 {effect.type}로 보호막을 얻었다!");
+                yield return new WaitForSeconds(0.3f);
+                break;
+        }
+    }
+
+
+
+    public void RemoveStatusEffect(StatusEffectType type)
+    {
+        activeStatusEffects.RemoveAll(e => e.type == type);
+        UpdateStatusEffectUI();
+    }
+
+    public bool HasStatusEffect(StatusEffectType type)
+    {
+        return activeStatusEffects.Exists(e => e.type == type);
+    }
+
+    public StatusEffectData GetStatusEffect(StatusEffectType type)
+    {
+        return activeStatusEffects.Find(e => e.type == type);
+    }
+
     private IEnumerator MoveToImpulse(Vector3 impulse, float duration)
     {
-        if (this == null)
-            yield break;
-
         Vector3 startPos = transform.position;
         Vector3 endPos = startPos + impulse;
         float elapsed = 0f;
 
         while (elapsed < duration)
         {
-            if (this == null)
-                yield break;
-
             elapsed += Time.deltaTime;
             transform.position = Vector3.Lerp(startPos, endPos, elapsed / duration);
             yield return null;
         }
 
-        if (this == null)
-            yield break;
-
         transform.position = endPos;
     }
 
-
-
-
-
-    private IEnumerator MoveTo(Vector3 targetPos)
-    {
-        float moveSpeed = 10f;
-        while (Vector3.Distance(transform.position, targetPos) > 0.05f)
-        {
-            transform.position = Vector3.MoveTowards(transform.position, targetPos, moveSpeed * Time.deltaTime);
-            yield return null;
-        }
-    }
-
-
-
     private void DealDamage(Character target)
     {
-        int damage = Random.Range(10, 10000); 
-
+        int damage = Random.Range(10, 10000);
         target.ApplyDamage(damage);
-        LogManager.Instance.Log($"{characterName}이 {target.characterName}에게 {damage} 데미지!");
     }
+
+    public void ApplyDamage(int amount, StatusEffectSource source = StatusEffectSource.DirectAttack, StatusEffectType effectType = StatusEffectType.None)
+    {
+        var spawner = GetComponentInChildren<DamageTextSpawner>();
+        if (spawner != null)
+        {
+            if (source == StatusEffectSource.StatusDamage)
+                spawner.ShowStatusEffectDamage(amount, effectType, 0.7f);
+            else
+                spawner.ShowDamage(amount, 0.7f);
+        }
+
+        hp -= amount;
+        hp = Mathf.Max(hp, 0);
+    }
+    
+    public void ApplyHeal(int amount, StatusEffectType effectType)
+    {
+        var spawner = GetComponentInChildren<DamageTextSpawner>();
+        if (spawner != null)
+        {
+            spawner.ShowHeal(amount, effectType, 0.7f);
+        }
+
+        hp += amount;
+        hp = Mathf.Min(hp, maxHp);
+    }
+
+    private int shieldAmount = 0;
+
+    public void ApplyShield(int amount)
+    {
+        shieldAmount += amount;
+    }
+
+    
+
 }

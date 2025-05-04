@@ -23,7 +23,8 @@ public class BattleManager : MonoBehaviour
     
     public Transform playerAdvancePoint;
     public Transform enemyAdvancePoint;
-
+    private int activeDamageTexts = 0; // ⭐ 추가
+    
     private readonly CharacterData[] deck1 = {
         new CharacterData("중독빌드1", 100, 10),
         new CharacterData("중독빌드2", 90, 15),
@@ -60,6 +61,22 @@ public class BattleManager : MonoBehaviour
             UpdateTargetUI();
         }
     }
+    
+    public void RegisterDamageText()
+    {
+        activeDamageTexts++;
+    }
+
+    public void UnregisterDamageText()
+    {
+        activeDamageTexts = Mathf.Max(0, activeDamageTexts - 1);
+    }
+
+    public bool IsAnyDamageTextActive()
+    {
+        return activeDamageTexts > 0;
+    }
+
 
     private void UpdateTargetUI()
     {
@@ -111,36 +128,46 @@ public class BattleManager : MonoBehaviour
             GameObject go = Instantiate(characterPrefab, playerSpawnRoot);
             Character c = go.GetComponent<Character>();
             c.characterName = $"아군_{i+1}";
-            c.hp = 100;
+            c.hp = 999999;
             c.maxHp = 100;
             c.speed = Random.Range(5, 20);
             c.atbIconTransform = atbIcons[i]; // 플레이어 0~3
             c.isEnemy = false;
             playerTeam.Add(c);
 
-            // 아이콘 색상 및 이름 설정
             SetupCharacterIcon(c, playerColors[i]);
             SetupATBIcon(c, playerColors[i]);
+
+            // ⭐ 테스트용 중독 상태이상 추가
+            c.ApplyStatusEffect(new StatusEffectData
+            {
+                type = StatusEffectType.Poison,
+                potency = 5,    // 1턴당 5 데미지
+                duration = 3,   // 3턴 지속
+                tickType = StatusEffectTickType.EndOfTurn
+            });
         }
 
         for (int i = 0; i < 4; i++)
         {
             GameObject go = Instantiate(characterPrefab, enemySpawnRoot);
-            Character c = go.GetComponent<Character>();
-            c.characterName = $"적_{i+1}";
-            c.hp = 100;
-            c.maxHp = 100;
-            c.speed = Random.Range(5, 20);
-            c.atbIconTransform = atbIcons[i + 4]; // 적 4~7
-            c.isEnemy = true;
-            enemyTeam.Add(c);
+            Character e = go.GetComponent<Character>();
+            e.characterName = $"적_{i+1}";
+            e.hp = 999999;
+            e.maxHp = 100;
+            e.speed = Random.Range(5, 20);
+            e.atbIconTransform = atbIcons[i + 4];
+            e.isEnemy = true;
+            enemyTeam.Add(e);
 
-            // 아이콘 색상 및 이름 설정
-            SetupCharacterIcon(c, enemyColors[i]);
-            SetupATBIcon(c, enemyColors[i]);
+            SetupCharacterIcon(e, enemyColors[i]);
+            SetupATBIcon(e, enemyColors[i]);
         }
+
         StartCoroutine(InitializeCharacters());
     }
+
+    
     private IEnumerator InitializeCharacters()
     {
         yield return null; // ⭐️ 한 프레임 쉬어야 GridLayoutGroup 적용됨
@@ -193,7 +220,7 @@ public class BattleManager : MonoBehaviour
     private void Update()
     {
         if (isSomeoneActing)
-            return;
+            return; // ⭐️ 누군가 행동 중이면 ATB 멈춤
 
         Character nextActor = null;
         float highestATB = 0f;
@@ -225,16 +252,22 @@ public class BattleManager : MonoBehaviour
         if (nextActor != null)
         {
             nextActor.atbGauge = 0f;
-            if (playerTeam.Contains(nextActor))
+
+            if (nextActor.isEnemy)
             {
-                StartCoroutine(nextActor.AttackTarget(currentTargetEnemy));
+                Character target = GetRandomPlayerTarget();
+                if (target != null)
+                    nextActor.EnqueueBasicAttack(target);
             }
             else
             {
-                StartCoroutine(nextActor.AttackTarget(GetRandomPlayerTarget()));
+                if (currentTargetEnemy != null)
+                    nextActor.EnqueueBasicAttack(currentTargetEnemy);
             }
         }
     }
+
+
 
     
     public Character GetFirstAliveEnemy()
@@ -258,14 +291,23 @@ public class BattleManager : MonoBehaviour
 
     public void RequestSkillUse(int characterIndex, int skillIndex)
     {
-        LogManager.Instance.Log($"{characterIndex+1}번 캐릭터 스킬 {skillIndex+ 1} 사용 요청");
+        LogManager.Instance.Log($"{characterIndex + 1}번 캐릭터 스킬 {skillIndex + 1} 사용 요청");
+
         if (characterIndex >= 0 && characterIndex < playerTeam.Count)
         {
             Character c = playerTeam[characterIndex];
-            c.UseSkill(skillIndex);
+            if (c != null && c.isAlive && skillIndex >= 0 && skillIndex < c.skills.Count)
+            {
+                Skill skill = c.skills[skillIndex];
+                if (skill != null && skill.skillType == SkillType.Active)
+                {
+                    // 스킬을 "큐에 삽입"한다
+                    c.InsertSkillToQueue(() => skill.Activate(c, playerTeam, enemyTeam));
+                }
+            }
         }
     }
-    
+
     public Character GetRandomPlayerTarget()
     {
         List<Character> alivePlayers = playerTeam.FindAll(p => p.isAlive);
@@ -311,8 +353,7 @@ public class BattleManager : MonoBehaviour
                 c.speed = 0;
                 c.atbGauge = 0;
                 c.atbSpeedMultiplier = 1f;
-                c.poisonStacks = 0;
-                c.bleedStacks = 0;
+                c.activeStatusEffects.Clear();
             }
             Destroy(c.gameObject);
         }
@@ -328,8 +369,7 @@ public class BattleManager : MonoBehaviour
                 e.speed = 0;
                 e.atbGauge = 0;
                 e.atbSpeedMultiplier = 1f;
-                e.poisonStacks = 0;
-                e.bleedStacks = 0;
+                e.activeStatusEffects.Clear();
             }
             Destroy(e.gameObject);
         }
