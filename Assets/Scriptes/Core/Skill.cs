@@ -84,8 +84,7 @@ private IEnumerator ExecutePhases(Character caster, List<Character> allies, List
 
             yield return new WaitForSeconds(phase.delayAfterHit);
         }
-
-        yield return new WaitForSeconds(0.7f);
+        
         yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
 
         caster.transform.position = caster.originalPosition;
@@ -143,8 +142,7 @@ private IEnumerator ExecutePhases(Character caster, List<Character> allies, List
 
             yield return new WaitForSeconds(phase.delayAfterHit);
         }
-
-        yield return new WaitForSeconds(0.7f);
+        
         yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
 
         caster.transform.position = caster.originalPosition;

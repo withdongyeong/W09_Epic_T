@@ -26,7 +26,9 @@ public class DamageTextSpawner : MonoBehaviour
 
         DamageStrength strength = GetDamageStrength(amount);
 
-        GameObject obj = Instantiate(damageTextPrefab, transform.position, Quaternion.identity, transform);
+        Vector3 offset = new Vector3(0.5f, 0.5f, 0f); // 살짝 오른쪽 위로
+        GameObject obj = Instantiate(damageTextPrefab, transform.position + offset, Quaternion.identity, transform);
+
         DamageText damageText = obj.GetComponent<DamageText>();
         if (damageText != null)
         {
@@ -35,6 +37,7 @@ public class DamageTextSpawner : MonoBehaviour
 
         ApplyShake(strength);
     }
+
 
     public void ShowHeal(int amount, StatusEffectType effectType, float lifetime = 0.8f)
     {
@@ -68,10 +71,10 @@ public class DamageTextSpawner : MonoBehaviour
                 CameraManager.Instance.Shake(0.05f, 0.15f);
                 break;
             case DamageStrength.Medium:
-                CameraManager.Instance.Shake(0.15f, 0.25f);
+                CameraManager.Instance.Shake(0.1f, 0.25f);
                 break;
             case DamageStrength.High:
-                CameraManager.Instance.Shake(0.3f, 0.4f);
+                CameraManager.Instance.Shake(0.2f, 0.4f);
                 break;
         }
     }

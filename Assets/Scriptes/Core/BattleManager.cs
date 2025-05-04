@@ -325,16 +325,16 @@ private void CreateShockDeckCharacters()
                 name: "단일감전(약)",
                 damagePerHit: 3,
                 hitCount: 2,
-                shockPower: 2,
-                shockDuration: 3,
+                shockPower: 1,
+                shockDuration: 1,
                 cooldownTurns: 2
             );
             var skill2 = SkillDatabase.CreateShockSkill(
                 name: "단일감전(강)",
                 damagePerHit: 4,
                 hitCount: 2,
-                shockPower: 3,
-                shockDuration: 3,
+                shockPower: 1,
+                shockDuration: 2,
                 cooldownTurns: 3
             );
             c.skills.Add(skill1);
@@ -356,8 +356,8 @@ private void CreateShockDeckCharacters()
                 name: "광역감전(강)",
                 damagePerHit: 3,
                 hitCount: 2,
-                shockPower: 3,
-                shockDuration: 2,
+                shockPower: 2,
+                shockDuration: 3,
                 cooldownTurns: 4
             );
             skill2.isAreaAttack = true;
@@ -371,7 +371,7 @@ private void CreateShockDeckCharacters()
                 name: "단일감전(다타)",
                 damagePerHit: 2,
                 hitCount: 3,
-                shockPower: 2,
+                shockPower: 3,
                 shockDuration: 2,
                 cooldownTurns: 2
             );
@@ -379,8 +379,8 @@ private void CreateShockDeckCharacters()
                 name: "광역감전(다타)",
                 damagePerHit: 2,
                 hitCount: 3,
-                shockPower: 2,
-                shockDuration: 2,
+                shockPower: 3,
+                shockDuration: 3,
                 cooldownTurns: 4
             );
             skill2.isAreaAttack = true;
@@ -394,8 +394,8 @@ private void CreateShockDeckCharacters()
                 name: "광역감전 연격",
                 damagePerHit: 2,
                 hitCount: 5,
-                shockPower: 2,
-                shockDuration: 2,
+                shockPower: 1,
+                shockDuration: 5,
                 cooldownTurns: 3
             );
             skill1.isAreaAttack = true;
@@ -405,8 +405,8 @@ private void CreateShockDeckCharacters()
                 firstHitDamage: 3,
                 repeatDamage: 1,
                 repeatCount: 29,
-                shockPower: 3,
-                shockDuration: 3,
+                shockPower: 1,
+                shockDuration: 5,
                 cooldownTurns: 5
             );
             skill2.isAreaAttack = true;
@@ -685,11 +685,15 @@ private void CreateShockDeckCharacters()
         if (deckId == 0)
         {
             CreatePoisonDeckCharacters(); // 0번 덱은 중독덱 전용
+            ValidateTarget();
+            UpdateTargetUI();
             return;
         }
         if (deckId == 1)
         {
             CreateShockDeckCharacters();
+            ValidateTarget();
+            UpdateTargetUI();
             return;
         }
 

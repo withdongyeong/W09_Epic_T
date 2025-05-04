@@ -247,19 +247,16 @@ public class Character : MonoBehaviour
             case StatusEffectType.Burn:
             case StatusEffectType.Shock:
                 ApplyDamage(effect.potency, StatusEffectSource.StatusDamage, effect.type);
-                LogManager.Instance.Log($"{characterName}이 {effect.type}로 {effect.potency} 피해!");
                 yield return new WaitForSeconds(0.3f);
                 break;
 
             case StatusEffectType.HealOverTime:
                 ApplyHeal(effect.potency, effect.type);
-                LogManager.Instance.Log($"{characterName}이 {effect.type}로 {effect.potency} 히복!");
                 yield return new WaitForSeconds(0.3f);
                 break;
 
             case StatusEffectType.Shield:
                 ApplyShield(effect.potency);
-                LogManager.Instance.Log($"{characterName}이 {effect.type}로 보호막을 얻었다!");
                 yield return new WaitForSeconds(0.3f);
                 break;
         }

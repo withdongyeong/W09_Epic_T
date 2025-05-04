@@ -66,7 +66,6 @@ public static class SkillDatabase
                     var poison = target.GetStatusEffect(StatusEffectType.Poison);
                     poison.potency *= 2;
                     poison.duration = Mathf.Max(1, poison.duration / 2);
-                    LogManager.Instance.Log($"{target.characterName}의 중독이 압축됨!");
                     target.UpdateStatusEffectUI();
                 }
             }
@@ -125,23 +124,34 @@ public static class SkillDatabase
                 tickType = StatusEffectTickType.OnHitTaken
             },
             requiresQTE = false,
-            delayAfterHit = 0.3f // 첫타는 0.3초
+            delayAfterHit = 0.6f
         });
 
-        // 나머지 29타: 순수 데미지
+        // 나머지 연타
         for (int i = 0; i < repeatCount; i++)
         {
+            float delay;
+            if (i < 10)
+            {
+                delay = Mathf.Lerp(0.6f, 0.15f, (i + 1) / 4f); 
+            }
+            else
+            {
+                delay = 0.1f; // 5타부터 고정
+            }
+
             skill.attackPhases.Add(new AttackPhase
             {
                 damage = repeatDamage,
                 statusEffect = null,
                 customEffect = null,
                 requiresQTE = false,
-                delayAfterHit = 0.1f // 연타는 0.1초
+                delayAfterHit = delay
             });
         }
 
         return skill;
     }
+
 
 }
