@@ -24,6 +24,28 @@ public class BattleManager : MonoBehaviour
     public Transform playerAdvancePoint;
     public Transform enemyAdvancePoint;
     private int activeDamageTexts = 0; // ⭐ 추가
+    private Queue<(Character, Skill)> skillRequestQueue = new Queue<(Character, Skill)>();
+    [SerializeField] private List<CharacterUI> characterUIs; 
+    private List<Character> allCharacters = new List<Character>();
+    
+    public void UpdateAllCharacterUIs()
+    {
+        foreach (var ui in characterUIs)
+        {
+            ui.UpdateUI();
+        }
+    }
+    public void SetupCharacters(List<Character> characters)
+    {
+        allCharacters = characters;
+
+        for (int i = 0; i < characters.Count && i < characterUIs.Count; i++)
+        {
+            characterUIs[i].Bind(characters[i]);
+        }
+
+        UpdateAllCharacterUIs();
+    }
     
     private readonly CharacterData[] deck1 = {
         new CharacterData("중독빌드1", 100, 10),
@@ -115,39 +137,133 @@ public class BattleManager : MonoBehaviour
     
     private void Start()
     {
-        CreateCharacters();
-        
+        CreatePoisonDeckCharacters(); // 초기화 시 중독 덱 세팅
         ValidateTarget();
         UpdateTargetUI();
     }
 
-    private void CreateCharacters()
+    private void CreatePoisonDeckCharacters()
     {
         for (int i = 0; i < 4; i++)
         {
             GameObject go = Instantiate(characterPrefab, playerSpawnRoot);
             Character c = go.GetComponent<Character>();
-            c.characterName = $"아군_{i+1}";
+            switch (i)
+            {
+                case 0:
+                    c.characterName = "중독빌드1";
+                    break;
+                case 1:
+                    c.characterName = "중독빌드2";
+                    break;
+                case 2:
+                    c.characterName = "중독빌드1";
+                    break;
+                case 3:
+                    c.characterName = "중독피니시";
+                    break;
+                default:
+                    c.characterName = $"아군_{i+1}";
+                    break;
+            }
+
             c.hp = 999999;
             c.maxHp = 100;
             c.speed = Random.Range(5, 20);
-            c.atbIconTransform = atbIcons[i]; // 플레이어 0~3
+            c.atbIconTransform = atbIcons[i];
             c.isEnemy = false;
             playerTeam.Add(c);
 
             SetupCharacterIcon(c, playerColors[i]);
             SetupATBIcon(c, playerColors[i]);
 
-            // ⭐ 테스트용 중독 상태이상 추가
-            c.ApplyStatusEffect(new StatusEffectData
+            // ⭐ 캐릭터별 스킬 세팅
+            if (i == 0) // 빌드업1
             {
-                type = StatusEffectType.Poison,
-                potency = 5,    // 1턴당 5 데미지
-                duration = 3,   // 3턴 지속
-                tickType = StatusEffectTickType.EndOfTurn
-            });
+                var skill1 = SkillDatabase.CreatePoisonSkill(
+                    name: "단일중독(약)",
+                    damage: 5,
+                    poisonPower: 3,
+                    poisonDuration: 3, // 3회
+                    cooldownTurns: 2
+                );
+                var skill2 = SkillDatabase.CreatePoisonSkill(
+                    name: "단일중독(강)",
+                    damage: 8,
+                    poisonPower: 5,
+                    poisonDuration: 1, // 1회
+                    cooldownTurns: 3
+                );
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+            else if (i == 1) // 빌드업2
+            {
+                var skill1 = SkillDatabase.CreatePoisonSkill(
+                    name: "단일중독(약)",
+                    damage: 4,
+                    poisonPower: 2,
+                    poisonDuration: 4, // 4회
+                    cooldownTurns: 2
+                );
+                var skill2 = SkillDatabase.CreatePoisonSkill(
+                    name: "단일중독(강)",
+                    damage: 6,
+                    poisonPower: 4,
+                    poisonDuration: 2, // 2회
+                    cooldownTurns: 3
+                );
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+            else if (i == 2) // 빌드업3
+            {
+                var skill1 = SkillDatabase.CreatePoisonSkill(
+                    name: "광역중독(약)",
+                    damage: 4,
+                    poisonPower: 2,
+                    poisonDuration: 3, // 3회
+                    cooldownTurns: 3
+                );
+                skill1.isAreaAttack = true; // ⭐ 전체 공격 설정
+
+                var skill2 = SkillDatabase.CreatePoisonSkill(
+                    name: "광역중독(강)",
+                    damage: 6,
+                    poisonPower: 5,
+                    poisonDuration: 2, // 2회
+                    cooldownTurns: 4
+                );
+                skill2.isAreaAttack = true; // ⭐ 전체 공격 설정
+
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+            else if (i == 3) // 피니시 캐릭터
+            {
+                var skill1 = SkillDatabase.CreatePoisonSkill(
+                    name: "광역중독(약)",
+                    damage: 4,
+                    poisonPower: 3,
+                    poisonDuration: 2, // 2회
+                    cooldownTurns: 2
+                );
+                skill1.isAreaAttack = true; // ⭐ 전체 공격 설정
+
+                var skill2 = SkillDatabase.CreatePoisonFinishSkill(
+                    name: "독 압축 폭발",
+                    firstHitDamage: 7,
+                    compressDamage: 15,
+                    cooldownTurns: 4
+                );
+
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+
         }
 
+        // (적군 생성은 기존 코드 유지)
         for (int i = 0; i < 4; i++)
         {
             GameObject go = Instantiate(characterPrefab, enemySpawnRoot);
@@ -167,6 +283,159 @@ public class BattleManager : MonoBehaviour
         StartCoroutine(InitializeCharacters());
     }
 
+private void CreateShockDeckCharacters()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        GameObject go = Instantiate(characterPrefab, playerSpawnRoot);
+        Character c = go.GetComponent<Character>();
+        switch (i)
+        {
+            case 0:
+                c.characterName = "감전빌드1";
+                break;
+            case 1:
+                c.characterName = "감전빌드2";
+                break;
+            case 2:
+                c.characterName = "감전빌드3";
+                break;
+            case 3:
+                c.characterName = "감전피니시";
+                break;
+            default:
+                c.characterName = $"아군_{i + 1}";
+                break;
+        }
+
+        c.hp = 999999;
+        c.maxHp = 999999;
+        c.speed = Random.Range(5, 20);
+        c.atbIconTransform = atbIcons[i];
+        c.isEnemy = false;
+        playerTeam.Add(c);
+
+        SetupCharacterIcon(c, playerColors[i]);
+        SetupATBIcon(c, playerColors[i]);
+
+        // ⭐ 캐릭터별 스킬 세팅
+        if (i == 0) // 빌드업1
+        {
+            var skill1 = SkillDatabase.CreateShockSkill(
+                name: "단일감전(약)",
+                damagePerHit: 3,
+                hitCount: 2,
+                shockPower: 2,
+                shockDuration: 3,
+                cooldownTurns: 2
+            );
+            var skill2 = SkillDatabase.CreateShockSkill(
+                name: "단일감전(강)",
+                damagePerHit: 4,
+                hitCount: 2,
+                shockPower: 3,
+                shockDuration: 3,
+                cooldownTurns: 3
+            );
+            c.skills.Add(skill1);
+            c.skills.Add(skill2);
+        }
+        else if (i == 1) // 빌드업2
+        {
+            var skill1 = SkillDatabase.CreateShockSkill(
+                name: "광역감전(약)",
+                damagePerHit: 2,
+                hitCount: 2,
+                shockPower: 2,
+                shockDuration: 2,
+                cooldownTurns: 3
+            );
+            skill1.isAreaAttack = true;
+
+            var skill2 = SkillDatabase.CreateShockSkill(
+                name: "광역감전(강)",
+                damagePerHit: 3,
+                hitCount: 2,
+                shockPower: 3,
+                shockDuration: 2,
+                cooldownTurns: 4
+            );
+            skill2.isAreaAttack = true;
+
+            c.skills.Add(skill1);
+            c.skills.Add(skill2);
+        }
+        else if (i == 2) // 빌드업3
+        {
+            var skill1 = SkillDatabase.CreateShockSkill(
+                name: "단일감전(다타)",
+                damagePerHit: 2,
+                hitCount: 3,
+                shockPower: 2,
+                shockDuration: 2,
+                cooldownTurns: 2
+            );
+            var skill2 = SkillDatabase.CreateShockSkill(
+                name: "광역감전(다타)",
+                damagePerHit: 2,
+                hitCount: 3,
+                shockPower: 2,
+                shockDuration: 2,
+                cooldownTurns: 4
+            );
+            skill2.isAreaAttack = true;
+
+            c.skills.Add(skill1);
+            c.skills.Add(skill2);
+        }
+        else if (i == 3) // 감전 피니시 캐릭터
+        {
+            var skill1 = SkillDatabase.CreateShockSkill(
+                name: "광역감전 연격",
+                damagePerHit: 2,
+                hitCount: 5,
+                shockPower: 2,
+                shockDuration: 2,
+                cooldownTurns: 3
+            );
+            skill1.isAreaAttack = true;
+
+            var skill2 = SkillDatabase.CreateShockFinishSkill(
+                name: "감전 30연격",
+                firstHitDamage: 3,
+                repeatDamage: 1,
+                repeatCount: 29,
+                shockPower: 3,
+                shockDuration: 3,
+                cooldownTurns: 5
+            );
+            skill2.isAreaAttack = true;
+
+            c.skills.Add(skill1);
+            c.skills.Add(skill2);
+        }
+    }
+
+    // 적군 생성
+    for (int i = 0; i < 4; i++)
+    {
+        GameObject go = Instantiate(characterPrefab, enemySpawnRoot);
+        Character e = go.GetComponent<Character>();
+        e.characterName = $"적_{i + 1}";
+        e.hp = 999999;
+        e.maxHp = 999999;
+        e.speed = Random.Range(5, 20);
+        e.atbIconTransform = atbIcons[i + 4];
+        e.isEnemy = true;
+        enemyTeam.Add(e);
+
+        SetupCharacterIcon(e, enemyColors[i]);
+        SetupATBIcon(e, enemyColors[i]);
+    }
+
+    StartCoroutine(InitializeCharacters());
+}
+
     
     private IEnumerator InitializeCharacters()
     {
@@ -181,6 +450,7 @@ public class BattleManager : MonoBehaviour
         {
             e.originalPosition = e.transform.position;
         }
+        SetupCharacters(playerTeam);
     }
     private void SetupATBIcon(Character c, Color color)
     {
@@ -217,10 +487,27 @@ public class BattleManager : MonoBehaviour
         }
     }
 
+    private IEnumerator ExecuteSkill(Character caster, Skill skill)
+    {
+        isSomeoneActing = true;
+        yield return caster.StartCoroutine(skill.Activate(caster, playerTeam, enemyTeam));
+        isSomeoneActing = false;
+    }
+
+    
     private void Update()
     {
         if (isSomeoneActing)
-            return; // ⭐️ 누군가 행동 중이면 ATB 멈춤
+            return;
+
+        // ⭐️ 스킬 요청이 존재하면 우선 발동
+        if (skillRequestQueue.Count > 0)
+        {
+            var (character, skill) = skillRequestQueue.Dequeue();
+            character.actionQueue.Enqueue(() => ExecuteSkill(character, skill));
+            return;
+        }
+
 
         Character nextActor = null;
         float highestATB = 0f;
@@ -257,16 +544,29 @@ public class BattleManager : MonoBehaviour
             {
                 Character target = GetRandomPlayerTarget();
                 if (target != null)
-                    nextActor.EnqueueBasicAttack(target);
+                {
+                    // ⭐ 바로 발동
+                    StartCoroutine(ExecuteBasicAttack(nextActor, target));
+                }
             }
             else
             {
                 if (currentTargetEnemy != null)
-                    nextActor.EnqueueBasicAttack(currentTargetEnemy);
+                {
+                    // ⭐ 바로 발동
+                    StartCoroutine(ExecuteBasicAttack(nextActor, currentTargetEnemy));
+                }
             }
         }
+
     }
 
+    private IEnumerator ExecuteBasicAttack(Character attacker, Character target)
+    {
+        isSomeoneActing = true;
+        yield return attacker.StartCoroutine(attacker.BasicAttack(target));
+        isSomeoneActing = false;
+    }
 
 
     
@@ -291,8 +591,6 @@ public class BattleManager : MonoBehaviour
 
     public void RequestSkillUse(int characterIndex, int skillIndex)
     {
-        LogManager.Instance.Log($"{characterIndex + 1}번 캐릭터 스킬 {skillIndex + 1} 사용 요청");
-
         if (characterIndex >= 0 && characterIndex < playerTeam.Count)
         {
             Character c = playerTeam[characterIndex];
@@ -301,12 +599,12 @@ public class BattleManager : MonoBehaviour
                 Skill skill = c.skills[skillIndex];
                 if (skill != null && skill.skillType == SkillType.Active)
                 {
-                    // 스킬을 "큐에 삽입"한다
-                    c.InsertSkillToQueue(() => skill.Activate(c, playerTeam, enemyTeam));
+                    skillRequestQueue.Enqueue((c, skill));
                 }
             }
         }
     }
+
 
     public Character GetRandomPlayerTarget()
     {
@@ -384,23 +682,24 @@ public class BattleManager : MonoBehaviour
     {
         ClearField();
 
-        CharacterData[] selectedDeck = null;
-
-        switch (deckId)
+        if (deckId == 0)
         {
-            case 0:
-                selectedDeck = deck1;
-                break;
-            case 1:
-                selectedDeck = deck2;
-                break;
-            case 2:
-                selectedDeck = deck3;
-                break;
-            case 3:
-                selectedDeck = deck4;
-                break;
+            CreatePoisonDeckCharacters(); // 0번 덱은 중독덱 전용
+            return;
         }
+        if (deckId == 1)
+        {
+            CreateShockDeckCharacters();
+            return;
+        }
+
+
+        CharacterData[] selectedDeck = deckId switch
+        {
+            2 => deck3,
+            3 => deck4,
+            _ => null
+        };
 
         if (selectedDeck == null)
         {
@@ -424,12 +723,11 @@ public class BattleManager : MonoBehaviour
             SetupATBIcon(c, playerColors[i]);
         }
 
-        // 적도 4명 새로 소환 (간단하게 기본적)
         for (int i = 0; i < 4; i++)
         {
             GameObject go = Instantiate(characterPrefab, enemySpawnRoot);
             Character e = go.GetComponent<Character>();
-            e.characterName = $"적_{i + 1}";
+            e.characterName = $"적_{i+1}";
             e.hp = 100;
             e.maxHp = 100;
             e.speed = Random.Range(5, 20);

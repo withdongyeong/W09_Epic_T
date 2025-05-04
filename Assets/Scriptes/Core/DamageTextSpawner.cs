@@ -52,9 +52,9 @@ public class DamageTextSpawner : MonoBehaviour
 
     private DamageStrength GetDamageStrength(int amount)
     {
-        if (amount <= 3333)
+        if (amount <= 10)
             return DamageStrength.Low;
-        else if (amount <= 6666)
+        else if (amount <= 50)
             return DamageStrength.Medium;
         else
             return DamageStrength.High;

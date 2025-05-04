@@ -58,7 +58,7 @@ public static class SkillDatabase
         skill.attackPhases.Add(new AttackPhase
         {
             damage = compressDamage,
-            requiresQTE = true,
+            requiresQTE = false,
             customEffect = (target) =>
             {
                 if (target.HasStatusEffect(StatusEffectType.Poison))
@@ -67,10 +67,81 @@ public static class SkillDatabase
                     poison.potency *= 2;
                     poison.duration = Mathf.Max(1, poison.duration / 2);
                     LogManager.Instance.Log($"{target.characterName}의 중독이 압축됨!");
+                    target.UpdateStatusEffectUI();
                 }
             }
         });
 
         return skill;
     }
+    public static Skill CreateShockSkill(string name, int damagePerHit, int hitCount, int shockPower, int shockDuration, int cooldownTurns)
+    {
+        Skill skill = new Skill
+        {
+            skillName = name,
+            skillType = SkillType.Active,
+            cooldownTurns = cooldownTurns,
+            currentCooldown = 0
+        };
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            skill.attackPhases.Add(new AttackPhase
+            {
+                damage = damagePerHit,
+                statusEffect = new StatusEffectData
+                {
+                    type = StatusEffectType.Shock,
+                    potency = shockPower,
+                    duration = shockDuration,
+                    tickType = StatusEffectTickType.OnHitTaken // ⭐ 피격당할때마다 발동
+                },
+                customEffect = null,
+                requiresQTE = false
+            });
+        }
+
+        return skill;
+    }
+    public static Skill CreateShockFinishSkill(string name, int firstHitDamage, int repeatDamage, int repeatCount, int shockPower, int shockDuration, int cooldownTurns)
+    {
+        Skill skill = new Skill
+        {
+            skillName = name,
+            skillType = SkillType.Active,
+            cooldownTurns = cooldownTurns,
+            currentCooldown = 0
+        };
+
+        // 첫 타: 감전 부여
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = firstHitDamage,
+            statusEffect = new StatusEffectData
+            {
+                type = StatusEffectType.Shock,
+                potency = shockPower,
+                duration = shockDuration,
+                tickType = StatusEffectTickType.OnHitTaken
+            },
+            requiresQTE = false,
+            delayAfterHit = 0.3f // 첫타는 0.3초
+        });
+
+        // 나머지 29타: 순수 데미지
+        for (int i = 0; i < repeatCount; i++)
+        {
+            skill.attackPhases.Add(new AttackPhase
+            {
+                damage = repeatDamage,
+                statusEffect = null,
+                customEffect = null,
+                requiresQTE = false,
+                delayAfterHit = 0.1f // 연타는 0.1초
+            });
+        }
+
+        return skill;
+    }
+
 }

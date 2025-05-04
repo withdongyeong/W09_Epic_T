@@ -40,14 +40,28 @@ public class DamageText : MonoBehaviour
         }
         else if (visualType == DamageVisualType.StatusEffect)
         {
-            (color, fontSize) = effectType switch
+            color = effectType switch
             {
-                StatusEffectType.Poison => (new Color(0.6f, 1f, 0.6f), 16),
-                StatusEffectType.Bleed => (new Color(1f, 0.2f, 0.2f), 20),
-                StatusEffectType.Burn => (new Color(1f, 0.5f, 0f), 20),
-                StatusEffectType.Shock => (new Color(0.5f, 0.5f, 1f), 20),
-                _ => (Color.white, 16)
+                StatusEffectType.Poison => new Color(0.6f, 1f, 0.6f), // 연초록
+                StatusEffectType.Bleed => new Color(1f, 0.2f, 0.2f),   // 붉은색
+                StatusEffectType.Burn => new Color(1f, 0.5f, 0f),      // 주황색
+                StatusEffectType.Shock => new Color(0.5f, 0.5f, 1f),   // 파란색
+                _ => Color.white
             };
+
+            fontSize = 20;
+
+            // ⭐ 상태이상일 때도 강도(strength) 반영해서 색 진하게
+            float darkenFactor = strength switch
+            {
+                DamageStrength.Low => 1f,    // 기본 밝기
+                DamageStrength.Medium => 0.8f, // 살짝 어둡게
+                DamageStrength.High => 0.6f, // 많이 어둡게
+                _ => 1f
+            };
+
+            color *= darkenFactor; // 전체 색을 곱하기
+            color.a = 1f; // 알파는 다시 1로 고정
         }
         else if (visualType == DamageVisualType.Heal)
         {
@@ -60,6 +74,7 @@ public class DamageText : MonoBehaviour
 
         moveDirection = new Vector3(Random.Range(-0.3f, 0.3f), 1.0f, 0f);
     }
+
 
     private void Update()
     {

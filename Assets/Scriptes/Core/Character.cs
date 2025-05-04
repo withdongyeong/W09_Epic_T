@@ -121,12 +121,7 @@ public class Character : MonoBehaviour
         }
     }
 
-    public void EnqueueBasicAttack(Character target)
-    {
-        actionQueue.Enqueue(() => BasicAttack(target));
-    }
-
-    private IEnumerator BasicAttack(Character target)
+    public IEnumerator BasicAttack(Character target)
     {
         if (target == null || !target.isAlive)
             yield break;
@@ -161,9 +156,10 @@ public class Character : MonoBehaviour
                 skill.currentCooldown--;
         }
 
+        BattleManager.Instance.UpdateAllCharacterUIs();
         CameraManager.Instance.ZoomOut(0.3f);
     }
-    private IEnumerator WaitForAllDamageTexts()
+    public IEnumerator WaitForAllDamageTexts()
     {
         float timeout = 2f;
         float elapsed = 0f;
@@ -287,7 +283,7 @@ public class Character : MonoBehaviour
         return activeStatusEffects.Find(e => e.type == type);
     }
 
-    private IEnumerator MoveToImpulse(Vector3 impulse, float duration)
+    public IEnumerator MoveToImpulse(Vector3 impulse, float duration)
     {
         Vector3 startPos = transform.position;
         Vector3 endPos = startPos + impulse;
@@ -305,24 +301,51 @@ public class Character : MonoBehaviour
 
     private void DealDamage(Character target)
     {
-        int damage = Random.Range(10, 10000);
+        int damage = Random.Range(1, 5);
         target.ApplyDamage(damage);
     }
 
     public void ApplyDamage(int amount, StatusEffectSource source = StatusEffectSource.DirectAttack, StatusEffectType effectType = StatusEffectType.None)
     {
-        var spawner = GetComponentInChildren<DamageTextSpawner>();
-        if (spawner != null)
+        // 감전 추가피해 체크
+        if (HasStatusEffect(StatusEffectType.Shock))
+        {
+            StatusEffectData shock = GetStatusEffect(StatusEffectType.Shock);
+            if (shock != null && shock.duration > 0)
+            {
+                int shockDamage = shock.potency;
+                hp -= shockDamage;
+                hp = Mathf.Max(hp, 0);
+
+                var spawner = GetComponentInChildren<DamageTextSpawner>();
+                if (spawner != null)
+                {
+                    spawner.ShowStatusEffectDamage(shockDamage, StatusEffectType.Shock, 0.7f);
+                }
+
+                shock.duration -= 1;
+                if (shock.duration <= 0)
+                {
+                    RemoveStatusEffect(StatusEffectType.Shock);
+                }
+            }
+            UpdateStatusEffectUI();
+        }
+
+        // 기본 데미지 처리
+        var normalSpawner = GetComponentInChildren<DamageTextSpawner>();
+        if (normalSpawner != null)
         {
             if (source == StatusEffectSource.StatusDamage)
-                spawner.ShowStatusEffectDamage(amount, effectType, 0.7f);
+                normalSpawner.ShowStatusEffectDamage(amount, effectType, 0.7f);
             else
-                spawner.ShowDamage(amount, 0.7f);
+                normalSpawner.ShowDamage(amount, 0.7f);
         }
 
         hp -= amount;
         hp = Mathf.Max(hp, 0);
     }
+
     
     public void ApplyHeal(int amount, StatusEffectType effectType)
     {
