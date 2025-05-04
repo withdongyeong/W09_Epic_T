@@ -696,12 +696,18 @@ private void CreateShockDeckCharacters()
             UpdateTargetUI();
             return;
         }
+        if (deckId == 3)
+        {
+            CreateBurnDeckCharacters();
+            ValidateTarget();
+            UpdateTargetUI();
+            return;
+        }
 
 
         CharacterData[] selectedDeck = deckId switch
         {
             2 => deck3,
-            3 => deck4,
             _ => null
         };
 
@@ -747,4 +753,96 @@ private void CreateShockDeckCharacters()
         ValidateTarget();
         UpdateTargetUI();
     }
+    
+    private void CreateBurnDeckCharacters()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject go = Instantiate(characterPrefab, playerSpawnRoot);
+            Character c = go.GetComponent<Character>();
+
+            c.characterName = i switch
+            {
+                0 => "화상빌드1",
+                1 => "화상빌드2",
+                2 => "화상빌드3",
+                3 => "화상피니시",
+                _ => $"아군_{i + 1}"
+            };
+
+            c.hp = 999999;
+            c.maxHp = 999999;
+            c.speed = Random.Range(5, 20);
+            c.atbIconTransform = atbIcons[i];
+            c.isEnemy = false;
+            playerTeam.Add(c);
+
+            SetupCharacterIcon(c, playerColors[i]);
+            SetupATBIcon(c, playerColors[i]);
+
+            if (i < 3) // 빌드업용
+            {
+                var skill1 = SkillDatabase.CreateBurnSkill(
+                    name: "단일화상",
+                    damage: 4,
+                    burnPower: 2,
+                    burnDuration: 3,
+                    cooldownTurns: 2
+                );
+
+                var skill2 = SkillDatabase.CreateBurnSkill(
+                    name: "광역화상",
+                    damage: 3,
+                    burnPower: 1,
+                    burnDuration: 4,
+                    cooldownTurns: 3,
+                    isAreaAttack: true
+                );
+
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+            else // 피니시용
+            {
+                var skill1 = SkillDatabase.CreateBurnSkill(
+                    name: "광역화상",
+                    damage: 3,
+                    burnPower: 2,
+                    burnDuration: 3,
+                    cooldownTurns: 3,
+                    isAreaAttack: true
+                );
+
+                var skill2 = SkillDatabase.CreateBurnFinishSkill(
+                    name: "화상폭발",
+                    firstHitDamage: 5,
+                    burnPower: 2,
+                    cooldownTurns: 5
+                );
+
+                c.skills.Add(skill1);
+                c.skills.Add(skill2);
+            }
+        }
+
+        // 적 생성은 기존 코드와 동일
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject go = Instantiate(characterPrefab, enemySpawnRoot);
+            Character e = go.GetComponent<Character>();
+            e.characterName = $"적_{i + 1}";
+            e.hp = 999999;
+            e.maxHp = 999999;
+            e.speed = Random.Range(5, 20);
+            e.atbIconTransform = atbIcons[i + 4];
+            e.isEnemy = true;
+            enemyTeam.Add(e);
+
+            SetupCharacterIcon(e, enemyColors[i]);
+            SetupATBIcon(e, enemyColors[i]);
+        }
+
+        StartCoroutine(InitializeCharacters());
+    }
+
 }

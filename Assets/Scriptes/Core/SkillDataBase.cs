@@ -133,7 +133,11 @@ public static class SkillDatabase
             float delay;
             if (i < 10)
             {
-                delay = Mathf.Lerp(0.6f, 0.15f, (i + 1) / 4f); 
+                delay = Mathf.Lerp(0.6f, 0.3f, (i + 1) / 4f); 
+            }
+            else if (i == 27)
+            {
+                delay = 0.8f;
             }
             else
             {
@@ -152,6 +156,86 @@ public static class SkillDatabase
 
         return skill;
     }
+    
+    public static Skill CreateBurnSkill(string name, int damage, int burnPower, int burnDuration, int cooldownTurns, int hitCount = 1, bool isAreaAttack = false)
+{
+    var skill = new Skill
+    {
+        skillName = name,
+        skillType = SkillType.Active,
+        cooldownTurns = cooldownTurns,
+        attackPhases = new List<AttackPhase>()
+    };
+
+    for (int i = 0; i < hitCount; i++)
+    {
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = damage,
+            statusEffect = new StatusEffectData
+            {
+                type = StatusEffectType.Burn, // ⭐ 화상
+                potency = burnPower,
+                duration = burnDuration
+            },
+            requiresQTE = false
+        });
+    }
+
+    skill.isAreaAttack = isAreaAttack;
+    return skill;
+}
+
+public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int burnPower, int cooldownTurns)
+{
+    var skill = new Skill
+    {
+        skillName = name,
+        skillType = SkillType.Active,
+        cooldownTurns = cooldownTurns,
+        attackPhases = new List<AttackPhase>()
+    };
+
+    // 첫 번째 타격: 약한 대미지 + 화상 부여
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = firstHitDamage,
+        statusEffect = new StatusEffectData
+        {
+            type = StatusEffectType.Burn,
+            potency = burnPower,
+            duration = 10 // 대충 기본 지속시간, 필요하면 조정
+        },
+        requiresQTE = false,
+        delayAfterHit = 1f // ⭐ 약간 기다리기
+    });
+
+    // 두 번째 타격: 화상 스택을 전부 소모하고 추가 데미지
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = 0, // 추가 데미지는 customEffect에서 처리
+        requiresQTE = false,
+        delayAfterHit = 1f,
+        customEffect = (target) =>
+        {
+            if (target.HasStatusEffect(StatusEffectType.Burn))
+            {
+                var burn = target.GetStatusEffect(StatusEffectType.Burn);
+                int stack = burn.potency;
+                int burnDamagePerStack = 10;
+                int totalDamage = stack * burnDamagePerStack;
+
+                target.ApplyDamage(totalDamage, StatusEffectSource.SpecialSkill);
+                
+                target.RemoveStatusEffect(StatusEffectType.Burn);
+                target.UpdateStatusEffectUI();
+            }
+        }
+    });
+
+    return skill;
+}
+
 
 
 }
