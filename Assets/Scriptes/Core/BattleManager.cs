@@ -23,10 +23,14 @@ public class BattleManager : MonoBehaviour
     
     public Transform playerAdvancePoint;
     public Transform enemyAdvancePoint;
-    private int activeDamageTexts = 0; // ⭐ 추가
+    private int activeDamageTexts = 0;
     private Queue<(Character, Skill)> skillRequestQueue = new Queue<(Character, Skill)>();
     public List<CharacterUI> characterUIs; 
     private List<Character> allCharacters = new List<Character>();
+        
+    [Header("협공 QTE 설정")]
+    [SerializeField] private float followUpAttackChance = 1.0f; // 테스트용 100%
+    [SerializeField] private Vector3 followUpAttackOffset = new Vector3(0, 2f, 0); // 협공 시 위치 오프셋
     
     public readonly Color[] playerColors = {
         new Color(0.5f, 0.7f, 1f),
@@ -41,6 +45,96 @@ public class BattleManager : MonoBehaviour
         new Color(0.9f, 0.2f, 0.2f),
         new Color(1f, 0.6f, 0.6f)
     };
+    
+     public bool ShouldTriggerFollowUpQTE()
+    {
+        return Random.value <= followUpAttackChance;
+    }
+
+    public IEnumerator TriggerFollowUpQTE(Character attacker, Character target)
+    {
+        bool qteResult = false;
+        bool qteCompleted = false;
+        
+        // QTE 시작
+        QTEManager.Instance.StartQTE(QTEType.TimingButton, (result) => {
+            qteResult = result;
+            qteCompleted = true;
+        });
+        
+        // QTE 완료 대기
+        while (!qteCompleted)
+            yield return null;
+        
+        LogManager.Instance.Log($"QTE 결과: {qteResult}");
+        
+        // 성공 시 협공 실행
+        if (qteResult && target.isAlive)
+        {
+            Character ally = GetRandomAliveAllyExcept(attacker);
+            if (ally != null)
+            {
+                yield return StartCoroutine(PerformFollowUpAttack(ally, target));
+            }
+        }
+    }
+    
+    // 별도의 협공 공격 메소드 (QTE 중첩 방지)
+    private IEnumerator PerformFollowUpAttack(Character attacker, Character target)
+    {
+        if (!target.isAlive)
+            yield break;
+            
+        // 원래 위치 저장
+        Vector3 originalAttackerPos = attacker.transform.position;
+        Vector3 originalTargetPos = target.transform.position;
+        
+        // 협공 위치 계산 (기존보다 위쪽)
+        Vector3 myAdvancePos = playerAdvancePoint.position + followUpAttackOffset;
+        Vector3 enemyAdvancePos = enemyAdvancePoint.position + followUpAttackOffset;
+        
+        // 위치 이동
+        attacker.transform.position = attacker.isEnemy ? enemyAdvancePos : myAdvancePos;
+        target.transform.position = attacker.isEnemy ? myAdvancePos : enemyAdvancePos;
+        
+        CameraManager.Instance.FocusBetweenPoints(attacker.transform.position, target.transform.position, 0.1f, 3.5f);
+        
+        yield return new WaitForSeconds(0.1f);
+        
+        // 공격 모션
+        Vector3 attackImpulse = (target.transform.position - attacker.transform.position).normalized * 0.5f;
+        yield return attacker.MoveToImpulse(attackImpulse, 0.3f);
+        
+        // 데미지 처리
+        attacker.DealDamage(target);
+        
+        yield return new WaitForSeconds(0.7f);
+        
+        attacker.ReduceSkillCooldowns();
+        
+        // 원래 위치로 복귀
+        attacker.transform.position = originalAttackerPos;
+        target.transform.position = originalTargetPos;
+        
+        CameraManager.Instance.ZoomOut(0.3f);
+    }
+    
+    private Character GetRandomAliveAllyExcept(Character attacker)
+    {
+        List<Character> aliveAllies = new List<Character>();
+    
+        foreach (Character ally in playerTeam)
+        {
+            if (ally.isAlive && ally != attacker)
+                aliveAllies.Add(ally);
+        }
+    
+        if (aliveAllies.Count > 0)
+            return aliveAllies[Random.Range(0, aliveAllies.Count)];
+        
+        return null;
+    }
+    
     
     public void UpdateAllCharacterUIs()
     {

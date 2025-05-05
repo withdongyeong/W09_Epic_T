@@ -10,7 +10,7 @@ public class Skill
     public List<AttackPhase> attackPhases = new List<AttackPhase>();
     public int cooldownTurns;
     public int currentCooldown;
-    public bool isAreaAttack; // ⭐ 전체공격 여부 추가
+    public bool isAreaAttack;
     public float hitInterval = 0.3f;
 
     public bool CanUse()
@@ -26,35 +26,92 @@ public class Skill
             yield break;
         }
 
-        yield return caster.StartCoroutine(ExecutePhases(caster, allies, enemies));
+        if (isAreaAttack)
+        {
+            yield return caster.StartCoroutine(ExecuteAreaAttack(caster, allies, enemies));
+        }
+        else
+        {
+            yield return caster.StartCoroutine(ExecuteSingleTargetAttack(caster, enemies));
+        }
 
         currentCooldown = cooldownTurns;
         BattleManager.Instance.UpdateAllCharacterUIs();
     }
 
-private IEnumerator ExecutePhases(Character caster, List<Character> allies, List<Character> enemies)
-{
-    if (isAreaAttack)
+    private IEnumerator ExecuteAreaAttack(Character caster, List<Character> allies, List<Character> enemies)
     {
         List<Character> targets = (caster.isEnemy ? allies : enemies).FindAll(c => c.isAlive);
+        if (targets.Count == 0) yield break;
 
         Vector3 casterAdvancePos = caster.isEnemy ? BattleManager.Instance.enemyAdvancePoint.position : BattleManager.Instance.playerAdvancePoint.position;
         Vector3 targetAdvancePos = caster.isEnemy ? BattleManager.Instance.playerAdvancePoint.position : BattleManager.Instance.enemyAdvancePoint.position;
 
+        // 포지셔닝
         caster.transform.position = casterAdvancePos;
         for (int i = 0; i < targets.Count; i++)
         {
             targets[i].transform.position = targetAdvancePos + new Vector3(0, i * -0.5f, 0);
         }
 
+        // 카메라 및 공격 모션
         CameraManager.Instance.FocusBetweenPoints(casterAdvancePos, targetAdvancePos, 0.1f, 3.5f);
         yield return new WaitForSeconds(0.1f);
 
         Vector3 attackImpulse = (targetAdvancePos - casterAdvancePos).normalized * 0.5f;
         yield return caster.StartCoroutine(caster.MoveToImpulse(attackImpulse, 0.3f));
 
+        // 공격 페이즈 실행
+        yield return ExecuteAttackPhases(caster, targets);
+        
+        // 정리
+        caster.transform.position = caster.originalPosition;
+        foreach (var target in targets)
+        {
+            target.transform.position = target.originalPosition;
+        }
+
+        CameraManager.Instance.ZoomOut(0.3f);
+    }
+
+    private IEnumerator ExecuteSingleTargetAttack(Character caster, List<Character> enemies)
+    {
+        Character target = BattleManager.Instance.currentTargetEnemy;
+        if (target == null || !target.isAlive)
+            target = BattleManager.Instance.GetFirstAliveEnemy();
+
+        if (target == null) yield break;
+
+        Vector3 casterAdvancePos = caster.isEnemy ? BattleManager.Instance.enemyAdvancePoint.position : BattleManager.Instance.playerAdvancePoint.position;
+        Vector3 targetAdvancePos = caster.isEnemy ? BattleManager.Instance.playerAdvancePoint.position : BattleManager.Instance.enemyAdvancePoint.position;
+
+        // 포지셔닝
+        caster.transform.position = casterAdvancePos;
+        target.transform.position = targetAdvancePos;
+
+        // 카메라 및 공격 모션
+        CameraManager.Instance.FocusBetweenPoints(casterAdvancePos, targetAdvancePos, 0.1f, 3.5f);
+        yield return new WaitForSeconds(0.1f);
+
+        Vector3 attackImpulse = (targetAdvancePos - casterAdvancePos).normalized * 0.5f;
+        yield return caster.StartCoroutine(caster.MoveToImpulse(attackImpulse, 0.3f));
+
+        // 공격 페이즈 실행
+        List<Character> singleTarget = new List<Character> { target };
+        yield return ExecuteAttackPhases(caster, singleTarget);
+        
+        // 정리
+        caster.transform.position = caster.originalPosition;
+        target.transform.position = target.originalPosition;
+
+        CameraManager.Instance.ZoomOut(0.3f);
+    }
+
+    private IEnumerator ExecuteAttackPhases(Character caster, List<Character> targets)
+    {
         foreach (var phase in attackPhases)
         {
+            // 각 타겟에 데미지와 효과 적용
             foreach (var target in targets)
             {
                 if (!target.isAlive) continue;
@@ -72,103 +129,36 @@ private IEnumerator ExecutePhases(Character caster, List<Character> allies, List
                 }
             }
 
+            // QTE 처리 (타입 지정)
             if (phase.requiresQTE)
             {
-                bool success = SimulateQTE();
-                if (!success)
+                bool qteSuccess = false;
+                bool qteCompleted = false;
+            
+                QTEManager.Instance.StartQTE(phase.qteType, (result) => {
+                    qteSuccess = result;
+                    qteCompleted = true;
+                });
+            
+                while (!qteCompleted)
+                    yield return null;
+            
+                if (!qteSuccess)
                 {
                     LogManager.Instance.Log("QTE 실패로 스킬 중단");
                     break;
+                }
+                else
+                {
+                    LogManager.Instance.Log("QTE 성공! 스킬 계속 진행");
                 }
             }
 
             yield return new WaitForSeconds(phase.delayAfterHit);
         }
-        
+    
         yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
-
-        caster.transform.position = caster.originalPosition;
-        foreach (var target in targets)
-        {
-            target.transform.position = target.originalPosition;
-        }
-
-        CameraManager.Instance.ZoomOut(0.3f);
     }
-    else
-    {
-        Character target = BattleManager.Instance.currentTargetEnemy;
-        if (target == null || !target.isAlive)
-            target = BattleManager.Instance.GetFirstAliveEnemy();
-
-        if (target == null)
-            yield break;
-
-        Vector3 casterAdvancePos = caster.isEnemy ? BattleManager.Instance.enemyAdvancePoint.position : BattleManager.Instance.playerAdvancePoint.position;
-        Vector3 targetAdvancePos = caster.isEnemy ? BattleManager.Instance.playerAdvancePoint.position : BattleManager.Instance.enemyAdvancePoint.position;
-
-        caster.transform.position = casterAdvancePos;
-        target.transform.position = targetAdvancePos;
-
-        CameraManager.Instance.FocusBetweenPoints(casterAdvancePos, targetAdvancePos, 0.1f, 3.5f);
-        yield return new WaitForSeconds(0.1f);
-
-        Vector3 attackImpulse = (targetAdvancePos - casterAdvancePos).normalized * 0.5f;
-        yield return caster.StartCoroutine(caster.MoveToImpulse(attackImpulse, 0.3f));
-
-        foreach (var phase in attackPhases)
-        {
-            target.ApplyDamage(phase.damage, StatusEffectSource.DirectAttack);
-
-            if (phase.statusEffect != null && phase.statusEffect.type != StatusEffectType.None)
-            {
-                target.ApplyStatusEffect(phase.statusEffect);
-            }
-
-            if (phase.customEffect != null)
-            {
-                phase.customEffect(target);
-            }
-
-            if (phase.requiresQTE)
-            {
-                bool success = SimulateQTE();
-                if (!success)
-                {
-                    LogManager.Instance.Log("QTE 실패로 스킬 중단");
-                    break;
-                }
-            }
-
-            yield return new WaitForSeconds(phase.delayAfterHit);
-        }
-        
-        yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
-
-        caster.transform.position = caster.originalPosition;
-        target.transform.position = target.originalPosition;
-
-        CameraManager.Instance.ZoomOut(0.3f);
-    }
-}
-
-
-    private IEnumerator MoveToPosition(Character character, Vector3 targetPosition, float duration)
-    {
-        Vector3 startPos = character.transform.position;
-        float timer = 0f;
-
-        while (timer < duration)
-        {
-            timer += Time.deltaTime;
-            float t = timer / duration;
-            character.transform.position = Vector3.Lerp(startPos, targetPosition, t);
-            yield return null;
-        }
-
-        character.transform.position = targetPosition;
-    }
-
 
     private bool SimulateQTE()
     {

@@ -145,19 +145,30 @@ public class Character : MonoBehaviour
 
         yield return StartCoroutine(ApplyStatusEffectsEndOfTurn());
 
-        yield return StartCoroutine(WaitForAllDamageTexts()); // ⭐️ 여기 추가
+        yield return StartCoroutine(WaitForAllDamageTexts());
+
+        // 협공 QTE 발동 (플레이어 공격 후 + 타겟이 살아있을 때만)
+        if (!isEnemy && target.isAlive && BattleManager.Instance.ShouldTriggerFollowUpQTE())
+        {
+            yield return StartCoroutine(BattleManager.Instance.TriggerFollowUpQTE(this, target));
+        }
 
         transform.position = originalPosition;
         target.transform.position = target.originalPosition;
 
+        ReduceSkillCooldowns();
+
+        BattleManager.Instance.UpdateAllCharacterUIs();
+        CameraManager.Instance.ZoomOut(0.3f);
+    }
+    
+    public void ReduceSkillCooldowns()
+    {
         foreach (var skill in skills)
         {
             if (skill.currentCooldown > 0)
                 skill.currentCooldown--;
         }
-
-        BattleManager.Instance.UpdateAllCharacterUIs();
-        CameraManager.Instance.ZoomOut(0.3f);
     }
     public IEnumerator WaitForAllDamageTexts()
     {
@@ -296,7 +307,7 @@ public class Character : MonoBehaviour
         transform.position = endPos;
     }
 
-    private void DealDamage(Character target)
+    public void DealDamage(Character target)
     {
         int damage = Random.Range(1, 5);
         target.ApplyDamage(damage);

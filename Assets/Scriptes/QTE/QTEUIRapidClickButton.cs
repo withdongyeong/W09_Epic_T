@@ -15,7 +15,7 @@ public class QTEUIRapidClickButton : QTEUIBase
     [SerializeField] private RapidClickButtonUI ui;
     
     [Header("타이밍 설정")]
-    [SerializeField] private float duration = 3f;          // QTE 지속 시간
+    private float duration = 2f;          // QTE 지속 시간
     [SerializeField] private int requiredClicks = 10;      // 성공에 필요한 클릭 수
     [SerializeField] private KeyCode triggerKey = KeyCode.Space; // 스페이스 키
     
@@ -40,7 +40,6 @@ public class QTEUIRapidClickButton : QTEUIBase
         ResetVisuals();
         gameObject.SetActive(true);
         
-        Debug.Log($"연타 QTE 시작: duration={duration}, 목표={requiredClicks}회");
     }
 
     private void Update()

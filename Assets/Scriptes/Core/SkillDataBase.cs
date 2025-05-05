@@ -41,20 +41,21 @@ public static class SkillDatabase
             attackPhases = new List<AttackPhase>()
         };
 
-        // 첫 번째 타격 (약한 중독 걸기)
+        // 첫 번째 타격 (약한 중독 걸기) - QTE 추가
         skill.attackPhases.Add(new AttackPhase
         {
             damage = firstHitDamage,
             statusEffect = new StatusEffectData
             {
                 type = StatusEffectType.Poison,
-                power = 3, // 약한 중독
+                power = 3, 
                 stack = 2
             },
-            requiresQTE = false
+            requiresQTE = true,
+            qteType = QTEType.TimingButton
         });
 
-        // 두 번째 타격 (중독 압축 - customEffect)
+        // 두 번째 타격 (중독 압축)
         skill.attackPhases.Add(new AttackPhase
         {
             damage = compressDamage,
@@ -73,6 +74,7 @@ public static class SkillDatabase
 
         return skill;
     }
+
     public static Skill CreateShockSkill(string name, int damagePerHit, int hitCount, int shockPower, int shockStack, int cooldownTurns)
     {
         Skill skill = new Skill
@@ -127,32 +129,42 @@ public static class SkillDatabase
             delayAfterHit = 0.6f
         });
 
-        // 나머지 연타
-        for (int i = 0; i < repeatCount; i++)
+        // 서서히 빨라지는 연타 (2~10타)
+        for (int i = 0; i < 9; i++)
         {
-            float delay;
-            if (i < 10)
-            {
-                delay = Mathf.Lerp(0.6f, 0.3f, (i + 1) / 4f); 
-            }
-            else if (i == 27)
-            {
-                delay = 0.8f;
-            }
-            else
-            {
-                delay = 0.1f; // 5타부터 고정
-            }
-
+            float delay = Mathf.Lerp(0.6f, 0.3f, (i + 1) / 4f);
+        
             skill.attackPhases.Add(new AttackPhase
             {
                 damage = repeatDamage,
                 statusEffect = null,
-                customEffect = null,
-                requiresQTE = false,
+                requiresQTE = (i == 8), // 마지막 타격 후 QTE
+                qteType = (i == 8) ? QTEType.TapRapidly : QTEType.TimingButton,
                 delayAfterHit = delay
             });
         }
+
+        // 일정한 속도 빠른 연타 (11~27타)
+        for (int i = 0; i < 17; i++)
+        {
+            skill.attackPhases.Add(new AttackPhase
+            {
+                damage = repeatDamage,
+                statusEffect = null,
+                requiresQTE = (i == 16), // 마지막 타격 후 QTE
+                qteType = (i == 16) ? QTEType.TimingButton : QTEType.TimingButton,
+                delayAfterHit = 0.1f
+            });
+        }
+
+        // 마지막 타격
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = repeatDamage * 2,
+            statusEffect = null,
+            requiresQTE = false,
+            delayAfterHit = 0.8f
+        });
 
         return skill;
     }
@@ -186,56 +198,51 @@ public static class SkillDatabase
     return skill;
 }
 
-public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int burnPower, int cooldownTurns)
-{
-    var skill = new Skill
+    public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int burnPower, int cooldownTurns)
     {
-        skillName = name,
-        skillType = SkillType.Active,
-        cooldownTurns = cooldownTurns,
-        attackPhases = new List<AttackPhase>()
-    };
-
-    // 첫 번째 타격: 약한 대미지 + 화상 부여
-    skill.attackPhases.Add(new AttackPhase
-    {
-        damage = firstHitDamage,
-        statusEffect = new StatusEffectData
+        var skill = new Skill
         {
-            type = StatusEffectType.Burn,
-            power = burnPower,
-            stack = 10 // 회수 10회를 1타에 더함
-        },
-        requiresQTE = false,
-        delayAfterHit = 1f // ⭐ 약간 기다리기
-    });
+            skillName = name,
+            skillType = SkillType.Active,
+            cooldownTurns = cooldownTurns,
+            attackPhases = new List<AttackPhase>()
+        };
 
-    // 두 번째 타격: 화상 스택을 전부 소모하고 추가 데미지
-    skill.attackPhases.Add(new AttackPhase
-    {
-        damage = 0, // 추가 데미지는 customEffect에서 처리, 0은 데미지 표기 안됨
-        requiresQTE = false,
-        delayAfterHit = 1f,
-        customEffect = (target) =>
+        // 첫 번째 타격
+        skill.attackPhases.Add(new AttackPhase
         {
-            if (target.HasStatusEffect(StatusEffectType.Burn))
+            damage = firstHitDamage,
+            statusEffect = new StatusEffectData
             {
-                var burn = target.GetStatusEffect(StatusEffectType.Burn);
-                int currentBurnPower = burn.power;
-                int currentBurnStack = burn.stack;
-                int totalDamage = currentBurnPower * currentBurnStack;
+                type = StatusEffectType.Burn,
+                power = burnPower,
+                stack = 10
+            },
+            requiresQTE = true,
+            qteType = QTEType.TimingButton,
+            delayAfterHit = 1f
+        });
 
-                target.ApplyDamage(totalDamage, StatusEffectSource.SpecialSkill);
-                
-                target.RemoveStatusEffect(StatusEffectType.Burn);
-                target.UpdateStatusEffectUI();
+        // 두 번째 타격
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = 0,
+            requiresQTE = false,
+            delayAfterHit = 1f,
+            customEffect = (target) =>
+            {
+                if (target.HasStatusEffect(StatusEffectType.Burn))
+                {
+                    var burn = target.GetStatusEffect(StatusEffectType.Burn);
+                    int totalDamage = burn.power * burn.stack;
+                    target.ApplyDamage(totalDamage, StatusEffectSource.SpecialSkill);
+                    target.RemoveStatusEffect(StatusEffectType.Burn);
+                    target.UpdateStatusEffectUI();
+                }
             }
-        }
-    });
+        });
 
-    return skill;
-}
-
-
+        return skill;
+    }
 
 }

@@ -23,20 +23,18 @@ public class QTETest : MonoBehaviour
     private void StartTimingButtonQTE()
     {
         // QTE 시작
-        Debug.Log("QTE Timing button 시작됨");
         QTEManager.Instance.StartQTE(QTEType.TimingButton, OnQTEComplete);
     }
     
     private void StartRapidQTE()
     {
         // QTE 시작
-        Debug.Log("QTE rappid tapping 시작됨");
         QTEManager.Instance.StartQTE(QTEType.TapRapidly, OnQTEComplete);
     }
 
     private void OnQTEComplete(bool success)
     {
         // 결과 로그
-        Debug.Log("QTE 결과: " + (success ? "성공" : "실패"));
+        LogManager.Instance.Log((success ? "성공" : "실패"));
     }
 }
