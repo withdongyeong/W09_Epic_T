@@ -4146,6 +4146,8 @@ MonoBehaviour:
   - {fileID: 863501750}
   - {fileID: 922805122}
   - {fileID: 1631076420}
+  followUpAttackChance: 1
+  followUpAttackOffset: {x: 0, y: 2, z: 0}
 --- !u!4 &949086783
 Transform:
   m_ObjectHideFlags: 0

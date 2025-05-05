@@ -46,30 +46,7 @@ public static class DeckInitializer
 
     private static void InitializeAssistDeck(BattleManager manager)
     {
-        // 협공 덱 (deck3)
-        CharacterData[] assistDeck = {
-            new CharacterData("협공빌드1", 110, 9),
-            new CharacterData("협공빌드2", 115, 7),
-            new CharacterData("협공빌드3", 100, 10),
-            new CharacterData("협공피니시", 90, 17)
-        };
-
-        for (int i = 0; i < assistDeck.Length; i++)
-        {
-            GameObject go = GameObject.Instantiate(manager.characterPrefab, manager.playerSpawnRoot);
-            Character c = go.GetComponent<Character>();
-            c.characterName = assistDeck[i].characterName;
-            c.hp = assistDeck[i].hp;
-            c.maxHp = assistDeck[i].hp;
-            c.speed = assistDeck[i].speed;
-            c.atbIconTransform = manager.atbIcons[i];
-            c.isEnemy = false;
-            manager.playerTeam.Add(c);
-
-            manager.SetupCharacterIcon(c, manager.playerColors[i]);
-            manager.SetupATBIcon(c, manager.playerColors[i]);
-        }
-
+        CreatePlayerCharacters(manager, new string[] { "협공빌드1", "협공빌드2", "협공빌드3", "협공피니시" }, "Teamwork");
         CreateEnemies(manager);
     }
 
@@ -173,6 +150,43 @@ public static class DeckInitializer
             {
                 c.skills.Add(SkillDatabase.CreateBurnSkill("광역화상", 3, 2, 3, 3, 1,true));
                 c.skills.Add(SkillDatabase.CreateBurnFinishSkill("화상폭발", 5, 2, 5));
+            }
+        }
+        
+   
+        else if (deckType == "Teamwork")
+        {
+            if (index == 0) // 첫 번째 캐릭터: 강력한 평타 + 랜덤 아군 협공
+            {
+                // 패시브 스킬: 평타 공격력 대폭 강화
+                c.skills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 50%강화", 50));
+        
+                // 액티브 스킬: 랜덤 아군 협공
+                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 7, 3));
+            }
+            else if (index == 1) // 두 번째 캐릭터: 강력한 평타 + 랜덤 아군 협공
+            {
+                // 패시브 스킬: 평타 공격력 대폭 강화
+                c.skills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 70%강화", 60));
+        
+                // 액티브 스킬: 랜덤 아군 협공
+                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 8, 3));
+            }
+            else if (index == 2) // 세 번째 캐릭터: 강력한 평타 + 팀 속도 증가
+            {
+                // 패시브 스킬: 평타 공격력 강화
+                c.skills.Add(PassiveSkillDatabase.CreateDoubleAttackPassive("P:평타 100% 2대", 100));
+        
+                // 액티브 스킬: 랜덤 아군 협공
+                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 10, 3));
+            }
+            else // 피니시 캐릭터: 1번 속도/협공 버프, 2번 QTE 연속 협공
+            {
+                // 1번 스킬: 자신 속도 대폭 증가 + 아군 협공 확률 증가
+                c.skills.Add(SkillDatabase.CreateSelfSpeedTeamworkBuffSkill("선봉 돌격", 200, 100, 5, 3));
+        
+                // 2번 스킬: QTE 연속 협공
+                c.skills.Add(SkillDatabase.CreateAdvancedChainAssaultSkill("연쇄 협공", 10, 10, 4));
             }
         }
     }

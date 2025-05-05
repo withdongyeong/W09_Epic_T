@@ -12,6 +12,9 @@ public class Skill
     public int currentCooldown;
     public bool isAreaAttack;
     public float hitInterval = 0.3f;
+    // 패시브 스킬 장착 시 효과
+    public System.Action<Character> onEquip;
+    public System.Action<bool> onSkillEnd;
 
     public bool CanUse()
     {
@@ -20,6 +23,8 @@ public class Skill
 
     public IEnumerator Activate(Character caster, List<Character> allies, List<Character> enemies)
     {
+        bool skillSuccess = true;
+        
         if (!CanUse())
         {
             LogManager.Instance.Log($"{skillName} 쿨다운 : ({currentCooldown})");
@@ -37,6 +42,12 @@ public class Skill
 
         currentCooldown = cooldownTurns;
         BattleManager.Instance.UpdateAllCharacterUIs();
+        
+        // 스킬 종료 콜백 실행
+        if (onSkillEnd != null)
+        {
+            onSkillEnd(skillSuccess);
+        }
     }
 
     private IEnumerator ExecuteAreaAttack(Character caster, List<Character> allies, List<Character> enemies)
@@ -107,6 +118,7 @@ public class Skill
         CameraManager.Instance.ZoomOut(0.3f);
     }
 
+    // ExecuteAttackPhases 메서드 수정
     private IEnumerator ExecuteAttackPhases(Character caster, List<Character> targets)
     {
         foreach (var phase in attackPhases)
@@ -134,18 +146,25 @@ public class Skill
             {
                 bool qteSuccess = false;
                 bool qteCompleted = false;
-            
+        
                 QTEManager.Instance.StartQTE(phase.qteType, (result) => {
                     qteSuccess = result;
                     qteCompleted = true;
                 });
-            
+        
                 while (!qteCompleted)
                     yield return null;
-            
+        
                 if (!qteSuccess)
                 {
                     LogManager.Instance.Log("QTE 실패로 스킬 중단");
+                
+                    // QTE 실패 즉시 초기화를 위한 콜백 호출
+                    if (onSkillEnd != null)
+                    {
+                        onSkillEnd(false);
+                    }
+                
                     break;
                 }
                 else
@@ -159,7 +178,6 @@ public class Skill
     
         yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
     }
-
     private bool SimulateQTE()
     {
         return Random.value < 0.8f;

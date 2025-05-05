@@ -106,8 +106,7 @@ public class QTEUITimingButton : QTEUIBase
     }
     
     private void CheckSuccess(float progress) {
-        // 0.4~0.5초 구간(마지막 20%)이 성공 구간
-        float successStart = 0.8f; // 80% 지점
+        float successStart = 0.75f; // 75% 지점
         bool isSuccess = (progress >= successStart && progress < 0.999f);
         
         CompleteQTE(isSuccess);

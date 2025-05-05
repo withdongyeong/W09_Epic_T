@@ -7,5 +7,6 @@ public enum StatusEffectType
     Shock,      // 감전 데미지
     HealOverTime,   // 턴마다 회복
     Shield,     // 턴마다 보호막
-    // 추가 가능
+    SpeedUp,      // 속도 증가
+    TeamworkUp    // 협공 확률 증가
 }

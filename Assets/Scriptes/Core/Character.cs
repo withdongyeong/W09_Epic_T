@@ -11,6 +11,7 @@ public class Character : MonoBehaviour
     public int hp;
     public int maxHp;
     public int speed;
+    public bool waitingForAssault = false;
 
     public List<Skill> skills = new List<Skill>();
     public List<StatusEffectData> activeStatusEffects = new List<StatusEffectData>();
@@ -23,11 +24,15 @@ public class Character : MonoBehaviour
     public float atbGauge = 0f;
     public float atbSpeedMultiplier = 1f;
     public bool isEnemy;
+    public bool isUnderAssault = false;
 
     private bool isActing = false;
     private bool isAliveActionLoop = true;
     public Queue<Func<IEnumerator>> actionQueue = new Queue<Func<IEnumerator>>();
     [SerializeField] private TMP_Text statusEffectText; // 상태이상 표시용
+    
+    public int basicAttackBonus = 0;     // 기본 공격력 증가 퍼센트
+    public int doubleAttackChance = 0;   // 2번 공격 확률(%)
     
     private static readonly Dictionary<StatusEffectType, (string emoji, string colorHex)> StatusEffectVisuals = new()
     {
@@ -36,9 +41,24 @@ public class Character : MonoBehaviour
         { StatusEffectType.Burn, ("🔥", "#FFA500") },
         { StatusEffectType.Shock, ("⚡", "#8080FF") },
         { StatusEffectType.HealOverTime, ("💚", "#40FF40") },
-        { StatusEffectType.Shield, ("🛡️", "#00FFFF") }
+        { StatusEffectType.Shield, ("🛡️", "#00FFFF") },
+        { StatusEffectType.SpeedUp, ("🪽", "#FFD700") },     // 속도 증가: 날개 + 금색
+        { StatusEffectType.TeamworkUp, ("👊", "#FF69B4") }    // 협공 증가: 단검 + 핑크색
     };
 
+
+    // 패시브 스킬 효과 적용 메서드
+    public void ApplyPassiveSkills()
+    {
+        foreach (var skill in skills)
+        {
+            if (skill.skillType == SkillType.Passive && skill.onEquip != null)
+            {
+                skill.onEquip(this);
+            }
+        }
+    }
+    
     public void UpdateStatusEffectUI()
     {
         if (statusEffectText == null) return;
@@ -152,9 +172,12 @@ public class Character : MonoBehaviour
         {
             yield return StartCoroutine(BattleManager.Instance.TriggerFollowUpQTE(this, target));
         }
-
-        transform.position = originalPosition;
-        target.transform.position = target.originalPosition;
+        
+        if (!isUnderAssault)
+            transform.position = originalPosition;
+        
+        if (!target.isUnderAssault)
+            target.transform.position = target.originalPosition;
 
         ReduceSkillCooldowns();
 
@@ -206,15 +229,28 @@ public class Character : MonoBehaviour
         {
             existing.power += statusEffect.power;
             existing.stack += statusEffect.stack;
+        
+            // TeamworkUp 타입인 경우 power 값 100으로 제한
+            if (existing.type == StatusEffectType.TeamworkUp)
+            {
+                existing.power = Mathf.Min(existing.power, 100);
+            }
         }
         else
         {
+            // 새로 추가하는 경우 TeamworkUp 타입이면 제한
+            if (statusEffect.type == StatusEffectType.TeamworkUp)
+            {
+                statusEffect.power = Mathf.Min(statusEffect.power, 100);
+            }
+        
             activeStatusEffects.Add(new StatusEffectData
             {
                 type = statusEffect.type,
                 power = statusEffect.power,
                 stack = statusEffect.stack,
-                tickType = statusEffect.tickType
+                tickType = statusEffect.tickType,
+                isBuff = statusEffect.isBuff
             });
         }
 
@@ -249,6 +285,7 @@ public class Character : MonoBehaviour
         }
     }
 
+    // 상태이상 효과 적용 메서드 확장
     private IEnumerator ApplyStatusEffectImpact(StatusEffectData effect)
     {
         switch (effect.type)
@@ -270,13 +307,46 @@ public class Character : MonoBehaviour
                 ApplyShield(effect.power);
                 yield return new WaitForSeconds(0.3f);
                 break;
+            
+            case StatusEffectType.SpeedUp:
+            case StatusEffectType.TeamworkUp:
+                // 버프는 턴 종료 시 지속시간만 감소 (효과는 적용/제거 시점에 처리)
+                yield return new WaitForSeconds(0.1f);
+                break;
+            
+            default:
+                yield return null;
+                break;
         }
     }
 
 
 
+    // Character 클래스에 버프 제거 로직 추가
     public void RemoveStatusEffect(StatusEffectType type)
     {
+        var effect = GetStatusEffect(type);
+    
+        if (effect != null)
+        {
+            // 버프 효과 제거 처리
+            if (effect.isBuff)
+            {
+                switch (type)
+                {
+                    case StatusEffectType.SpeedUp:
+                        // 속도 증가 효과 제거
+                        atbSpeedMultiplier = Mathf.Max(1.0f, atbSpeedMultiplier - (effect.power / 100f));
+                        break;
+                    
+                    case StatusEffectType.TeamworkUp:
+                        // 협공 확률 증가 효과 제거
+                        BattleManager.Instance.DecreaseFollowUpChance(effect.power);
+                        break;
+                }
+            }
+        }
+        
         activeStatusEffects.RemoveAll(e => e.type == type);
         UpdateStatusEffectUI();
     }
@@ -307,10 +377,44 @@ public class Character : MonoBehaviour
         transform.position = endPos;
     }
 
+// Character 클래스의 DealDamage 메서드 재정의 (더 강력하게)
     public void DealDamage(Character target)
     {
-        int damage = Random.Range(1, 5);
-        target.ApplyDamage(damage);
+        // 기본 데미지 계산
+        int baseDamage = Random.Range(5, 11);
+    
+        // 패시브 공격력 보너스 적용
+        if (basicAttackBonus > 0)
+        {
+            float bonusMultiplier = 1 + (basicAttackBonus / 100f);
+            baseDamage = Mathf.RoundToInt(baseDamage * bonusMultiplier);
+        }
+    
+        // 데미지 적용
+        target.ApplyDamage(baseDamage);
+        
+    
+        // 2회 공격 확률 체크
+        if (doubleAttackChance > 0)
+        {
+            int roll = Random.Range(1, 101);
+        
+            if (roll <= doubleAttackChance)
+            {
+                StartCoroutine(DelayedSecondAttack(target, baseDamage));
+            }
+        }
+    }
+    
+    private IEnumerator DelayedSecondAttack(Character target, int firstDamage)
+    {
+        yield return new WaitForSeconds(0.3f);
+        
+        // 두 번째 공격은 첫 번째의 70-90% 데미지
+        float damageMultiplier = Random.Range(0.7f, 0.9f);
+        int secondDamage = Mathf.RoundToInt(firstDamage * damageMultiplier);
+        
+        target.ApplyDamage(secondDamage);
     }
 
     public void ApplyDamage(int amount, StatusEffectSource source = StatusEffectSource.DirectAttack, StatusEffectType effectType = StatusEffectType.None)
