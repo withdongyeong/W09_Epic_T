@@ -336,7 +336,13 @@ public class Character : MonoBehaviour
             if (source == StatusEffectSource.StatusDamage)
                 normalSpawner.ShowStatusEffectDamage(amount, effectType, 0.7f);
             else
-                normalSpawner.ShowDamage(amount, 0.7f);
+            {
+                // 0은 안 보여주기
+                if (amount > 0)
+                {
+                    normalSpawner.ShowDamage(amount, 0.7f);    
+                }
+            }
         }
 
         hp -= amount;

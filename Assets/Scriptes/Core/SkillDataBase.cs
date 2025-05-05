@@ -204,7 +204,7 @@ public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int b
         {
             type = StatusEffectType.Burn,
             potency = burnPower,
-            duration = 10 // 대충 기본 지속시간, 필요하면 조정
+            duration = 10 // 회수 10회를 1타에 더함
         },
         requiresQTE = false,
         delayAfterHit = 1f // ⭐ 약간 기다리기
@@ -213,7 +213,7 @@ public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int b
     // 두 번째 타격: 화상 스택을 전부 소모하고 추가 데미지
     skill.attackPhases.Add(new AttackPhase
     {
-        damage = 0, // 추가 데미지는 customEffect에서 처리
+        damage = 0, // 추가 데미지는 customEffect에서 처리, 0은 데미지 표기 안됨
         requiresQTE = false,
         delayAfterHit = 1f,
         customEffect = (target) =>
@@ -222,7 +222,7 @@ public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int b
             {
                 var burn = target.GetStatusEffect(StatusEffectType.Burn);
                 int stack = burn.potency;
-                int burnDamagePerStack = 10;
+                int burnDamagePerStack = burn.duration;
                 int totalDamage = stack * burnDamagePerStack;
 
                 target.ApplyDamage(totalDamage, StatusEffectSource.SpecialSkill);
