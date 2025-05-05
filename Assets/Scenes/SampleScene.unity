@@ -1053,6 +1053,52 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 178355976}
   m_CullTransparentMesh: 1
+--- !u!1 &211306014
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 211306016}
+  - component: {fileID: 211306015}
+  m_Layer: 0
+  m_Name: Tester
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &211306015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 211306014}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23385477d78f4c6691fcd80d68eba392, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  testKey1: 273
+  testKey2: 274
+--- !u!4 &211306016
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 211306014}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 382.8979, y: 212.9117, z: -2.4053154}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &231639816
 GameObject:
   m_ObjectHideFlags: 0
@@ -4055,6 +4101,7 @@ GameObject:
   - component: {fileID: 949086782}
   - component: {fileID: 949086784}
   - component: {fileID: 949086785}
+  - component: {fileID: 949086786}
   m_Layer: 0
   m_Name: Managers
   m_TagString: Untagged
@@ -4141,6 +4188,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mainCamera: {fileID: 519420031}
   defaultSize: 5
+--- !u!114 &949086786
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 949086781}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f61daa0504d24fbd924f67b0452aaf4e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  timingButtonPrefab: {fileID: 558693376870647558, guid: beaac904e2488c14da0f2b8550b22c86, type: 3}
+  rapidClickPrefab: {fileID: 9213062922307856821, guid: 34b1a0448be4455438463437bc0ee355, type: 3}
 --- !u!1 &1013413730
 GameObject:
   m_ObjectHideFlags: 0
@@ -9382,3 +9443,4 @@ SceneRoots:
   - {fileID: 867605322}
   - {fileID: 949086783}
   - {fileID: 577671788}
+  - {fileID: 211306016}

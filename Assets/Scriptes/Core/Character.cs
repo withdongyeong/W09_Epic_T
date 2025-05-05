@@ -47,17 +47,17 @@ public class Character : MonoBehaviour
 
         foreach (var effect in activeStatusEffects)
         {
-            if (effect.duration <= 0) continue;
+            if (effect.stack <= 0) continue;
 
             if (StatusEffectVisuals.TryGetValue(effect.type, out var visual))
             {
-                result += $"<color={visual.colorHex}>{visual.emoji} {effect.potency}/{effect.duration}</color>\n";
+                result += $"<color={visual.colorHex}>{visual.emoji} {effect.power}/{effect.stack}</color>\n";
 
             }
             else
             {
                 // 정의 안된 경우
-                result += $"{effect.type} {effect.potency}/{effect.duration}\n";
+                result += $"{effect.type} {effect.power}/{effect.stack}\n";
             }
         }
 
@@ -193,16 +193,16 @@ public class Character : MonoBehaviour
         var existing = activeStatusEffects.Find(e => e.type == statusEffect.type);
         if (existing != null)
         {
-            existing.potency += statusEffect.potency;
-            existing.duration += statusEffect.duration;
+            existing.power += statusEffect.power;
+            existing.stack += statusEffect.stack;
         }
         else
         {
             activeStatusEffects.Add(new StatusEffectData
             {
                 type = statusEffect.type,
-                potency = statusEffect.potency,
-                duration = statusEffect.duration,
+                power = statusEffect.power,
+                stack = statusEffect.stack,
                 tickType = statusEffect.tickType
             });
         }
@@ -223,8 +223,8 @@ public class Character : MonoBehaviour
             yield return StartCoroutine(ApplyStatusEffectImpact(effect));
 
             // 지속시간 감소
-            effect.duration--;
-            if (effect.duration <= 0)
+            effect.stack--;
+            if (effect.stack <= 0)
             {
                 expiredEffects.Add(effect);
             }
@@ -246,17 +246,17 @@ public class Character : MonoBehaviour
             case StatusEffectType.Bleed:
             case StatusEffectType.Burn:
             case StatusEffectType.Shock:
-                ApplyDamage(effect.potency, StatusEffectSource.StatusDamage, effect.type);
+                ApplyDamage(effect.power, StatusEffectSource.StatusDamage, effect.type);
                 yield return new WaitForSeconds(0.3f);
                 break;
 
             case StatusEffectType.HealOverTime:
-                ApplyHeal(effect.potency, effect.type);
+                ApplyHeal(effect.power, effect.type);
                 yield return new WaitForSeconds(0.3f);
                 break;
 
             case StatusEffectType.Shield:
-                ApplyShield(effect.potency);
+                ApplyShield(effect.power);
                 yield return new WaitForSeconds(0.3f);
                 break;
         }
@@ -308,9 +308,9 @@ public class Character : MonoBehaviour
         if (HasStatusEffect(StatusEffectType.Shock))
         {
             StatusEffectData shock = GetStatusEffect(StatusEffectType.Shock);
-            if (shock != null && shock.duration > 0)
+            if (shock != null && shock.stack > 0)
             {
-                int shockDamage = shock.potency;
+                int shockDamage = shock.power;
                 hp -= shockDamage;
                 hp = Mathf.Max(hp, 0);
 
@@ -320,8 +320,8 @@ public class Character : MonoBehaviour
                     spawner.ShowStatusEffectDamage(shockDamage, StatusEffectType.Shock, 0.7f);
                 }
 
-                shock.duration -= 1;
-                if (shock.duration <= 0)
+                shock.stack -= 1;
+                if (shock.stack <= 0)
                 {
                     RemoveStatusEffect(StatusEffectType.Shock);
                 }

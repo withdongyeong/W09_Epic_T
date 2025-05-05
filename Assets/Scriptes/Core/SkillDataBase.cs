@@ -3,7 +3,7 @@ using UnityEngine;
 
 public static class SkillDatabase
 {
-    public static Skill CreatePoisonSkill(string name, int damage, int poisonPower, int poisonDuration, int cooldownTurns, int hitCount = 1, bool[] qtePhases = null)
+    public static Skill CreatePoisonSkill(string name, int damage, int poisonPower, int poisonStack, int cooldownTurns, int hitCount = 1, bool[] qtePhases = null)
     {
         var skill = new Skill
         {
@@ -21,8 +21,8 @@ public static class SkillDatabase
                 statusEffect = new StatusEffectData
                 {
                     type = StatusEffectType.Poison,
-                    potency = poisonPower,
-                    duration = poisonDuration
+                    power = poisonPower,
+                    stack = poisonStack
                 },
                 requiresQTE = (qtePhases != null && i < qtePhases.Length) ? qtePhases[i] : false
             });
@@ -48,8 +48,8 @@ public static class SkillDatabase
             statusEffect = new StatusEffectData
             {
                 type = StatusEffectType.Poison,
-                potency = 3, // 약한 중독
-                duration = 2
+                power = 3, // 약한 중독
+                stack = 2
             },
             requiresQTE = false
         });
@@ -64,8 +64,8 @@ public static class SkillDatabase
                 if (target.HasStatusEffect(StatusEffectType.Poison))
                 {
                     var poison = target.GetStatusEffect(StatusEffectType.Poison);
-                    poison.potency *= 2;
-                    poison.duration = Mathf.Max(1, poison.duration / 2);
+                    poison.power *= 2;
+                    poison.stack = Mathf.Max(1, poison.stack / 2);
                     target.UpdateStatusEffectUI();
                 }
             }
@@ -73,7 +73,7 @@ public static class SkillDatabase
 
         return skill;
     }
-    public static Skill CreateShockSkill(string name, int damagePerHit, int hitCount, int shockPower, int shockDuration, int cooldownTurns)
+    public static Skill CreateShockSkill(string name, int damagePerHit, int hitCount, int shockPower, int shockStack, int cooldownTurns)
     {
         Skill skill = new Skill
         {
@@ -91,8 +91,8 @@ public static class SkillDatabase
                 statusEffect = new StatusEffectData
                 {
                     type = StatusEffectType.Shock,
-                    potency = shockPower,
-                    duration = shockDuration,
+                    power = shockPower,
+                    stack = shockStack,
                     tickType = StatusEffectTickType.OnHitTaken // ⭐ 피격당할때마다 발동
                 },
                 customEffect = null,
@@ -102,7 +102,7 @@ public static class SkillDatabase
 
         return skill;
     }
-    public static Skill CreateShockFinishSkill(string name, int firstHitDamage, int repeatDamage, int repeatCount, int shockPower, int shockDuration, int cooldownTurns)
+    public static Skill CreateShockFinishSkill(string name, int firstHitDamage, int repeatDamage, int repeatCount, int shockPower, int shockStack, int cooldownTurns)
     {
         Skill skill = new Skill
         {
@@ -119,8 +119,8 @@ public static class SkillDatabase
             statusEffect = new StatusEffectData
             {
                 type = StatusEffectType.Shock,
-                potency = shockPower,
-                duration = shockDuration,
+                power = shockPower,
+                stack = shockStack,
                 tickType = StatusEffectTickType.OnHitTaken
             },
             requiresQTE = false,
@@ -157,7 +157,7 @@ public static class SkillDatabase
         return skill;
     }
     
-    public static Skill CreateBurnSkill(string name, int damage, int burnPower, int burnDuration, int cooldownTurns, int hitCount = 1, bool isAreaAttack = false)
+    public static Skill CreateBurnSkill(string name, int damage, int burnPower, int burnStack, int cooldownTurns, int hitCount = 1, bool isAreaAttack = false)
 {
     var skill = new Skill
     {
@@ -175,8 +175,8 @@ public static class SkillDatabase
             statusEffect = new StatusEffectData
             {
                 type = StatusEffectType.Burn, // ⭐ 화상
-                potency = burnPower,
-                duration = burnDuration
+                power = burnPower,
+                stack = burnStack
             },
             requiresQTE = false
         });
@@ -203,8 +203,8 @@ public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int b
         statusEffect = new StatusEffectData
         {
             type = StatusEffectType.Burn,
-            potency = burnPower,
-            duration = 10 // 회수 10회를 1타에 더함
+            power = burnPower,
+            stack = 10 // 회수 10회를 1타에 더함
         },
         requiresQTE = false,
         delayAfterHit = 1f // ⭐ 약간 기다리기
@@ -221,9 +221,9 @@ public static Skill CreateBurnFinishSkill(string name, int firstHitDamage, int b
             if (target.HasStatusEffect(StatusEffectType.Burn))
             {
                 var burn = target.GetStatusEffect(StatusEffectType.Burn);
-                int stack = burn.potency;
-                int burnDamagePerStack = burn.duration;
-                int totalDamage = stack * burnDamagePerStack;
+                int currentBurnPower = burn.power;
+                int currentBurnStack = burn.stack;
+                int totalDamage = currentBurnPower * currentBurnStack;
 
                 target.ApplyDamage(totalDamage, StatusEffectSource.SpecialSkill);
                 
