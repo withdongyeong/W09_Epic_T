@@ -34,6 +34,14 @@ public class Character : MonoBehaviour
     public int basicAttackBonus = 0;     // 기본 공격력 증가 퍼센트
     public int doubleAttackChance = 0;   // 2번 공격 확률(%)
     
+    [Header("협공 능력치")]
+    [Tooltip("이 캐릭터가 공격 시 아군이 협공할 확률 (%)")]
+    [Range(0, 100)] public int followUpChance = 10; // 기본값 10%
+    
+    [Header("방어 능력치")]
+    [Tooltip("적의 공격을 방어할 확률 (%)")]
+    [Range(0, 100)] public int defenseQTEChance = 50; // 기본값 50%
+    
     private static readonly Dictionary<StatusEffectType, (string emoji, string colorHex)> StatusEffectVisuals = new()
     {
         { StatusEffectType.Poison, ("☠️", "#80FF80") },
@@ -46,6 +54,31 @@ public class Character : MonoBehaviour
         { StatusEffectType.TeamworkUp, ("👊", "#FF69B4") }    // 협공 증가: 단검 + 핑크색
     };
 
+    /// <summary>
+    /// 협공 확률 증가 메서드
+    /// </summary>
+    /// <param name="amount">증가할 확률 (퍼센트)</param>
+    public void IncreaseFollowUpChance(int amount)
+    {
+        followUpChance += amount;
+        followUpChance = Mathf.Min(followUpChance, 100); // 최대 100%
+    
+        // 디버그 로그
+        Debug.Log($"{characterName}의 협공 확률이 {amount}% 증가했습니다. 현재: {followUpChance}%");
+    }
+
+    /// <summary>
+    /// 협공 확률 감소 메서드
+    /// </summary>
+    /// <param name="amount">감소할 확률 (퍼센트)</param>
+    public void DecreaseFollowUpChance(int amount)
+    {
+        followUpChance -= amount;
+        followUpChance = Mathf.Max(followUpChance, 0); // 최소 0%
+    
+        // 디버그 로그
+        Debug.Log($"{characterName}의 협공 확률이 {amount}% 감소했습니다. 현재: {followUpChance}%");
+    }
 
     // 패시브 스킬 효과 적용 메서드
     public void ApplyPassiveSkills()
@@ -56,6 +89,82 @@ public class Character : MonoBehaviour
             {
                 skill.onEquip(this);
             }
+        }
+    }
+    
+    
+
+// 방어 QTE 발동 체크 메서드
+    public bool ShouldTriggerDefenseQTE()
+    {
+        int randomValue = Random.Range(1, 101);
+        bool shouldTrigger = randomValue <= defenseQTEChance;
+    
+        if (shouldTrigger)
+        {
+            Debug.Log($"{characterName}의 방어 QTE 발동! (확률: {defenseQTEChance}%)");
+        }
+    
+        return shouldTrigger;
+    }
+    
+    /// <summary>
+    /// 이 캐릭터의 협공 확률 기반으로 협공 발동 여부 결정
+    /// </summary>
+    /// <returns>협공 발동 여부</returns>
+    public bool ShouldTriggerFollowUp()
+    {
+        int randomValue = Random.Range(1, 101); // 1-100
+        bool shouldTrigger = randomValue <= followUpChance;
+    
+        if (shouldTrigger)
+        {
+            Debug.Log($"{characterName}의 공격으로 협공 발동! (확률: {followUpChance}%)");
+        }
+    
+        return shouldTrigger;
+    }
+    
+    // 버프 효과 즉시 적용 메서드 (비코루틴)
+    private void ApplyBuffEffect(StatusEffectData effect)
+    {
+        if (effect == null) return;
+        
+        switch (effect.type)
+        {
+            case StatusEffectType.SpeedUp:
+                // 속도 증가 적용
+                atbSpeedMultiplier += effect.power / 100f;
+                Debug.Log($"{characterName}의 속도가 {effect.power}% 증가했습니다. (현재 속도 배율: {atbSpeedMultiplier:F2}x)");
+                break;
+                
+            case StatusEffectType.TeamworkUp:
+                // 협공 확률 증가 적용
+                followUpChance += effect.power;
+                followUpChance = Mathf.Min(followUpChance, 100); // 최대 100%
+                Debug.Log($"{characterName}의 협공 확률이 {effect.power}% 증가했습니다. (현재 확률: {followUpChance}%)");
+                break;
+        }
+    }
+
+    // 상태이상 효과 제거 메서드
+    private void RemoveStatusEffectImpact(StatusEffectData effect)
+    {
+        if (effect == null) return;
+        
+        switch (effect.type)
+        {
+            case StatusEffectType.SpeedUp:
+                // 속도 증가 효과 제거
+                atbSpeedMultiplier = Mathf.Max(1.0f, atbSpeedMultiplier - (effect.power / 100f));
+                Debug.Log($"{characterName}의 속도 증가 효과가 제거되었습니다. (현재 속도 배율: {atbSpeedMultiplier:F2}x)");
+                break;
+                
+            case StatusEffectType.TeamworkUp:
+                // 협공 확률 증가 효과 제거
+                followUpChance = Mathf.Max(0, followUpChance - effect.power);
+                Debug.Log($"{characterName}의 협공 확률 증가 효과가 제거되었습니다. (현재 확률: {followUpChance}%)");
+                break;
         }
     }
     
@@ -158,9 +267,29 @@ public class Character : MonoBehaviour
 
         Vector3 attackImpulse = (target.transform.position - transform.position).normalized * 0.5f;
         yield return MoveToImpulse(attackImpulse, 0.3f);
-
-        DealDamage(target);
-
+        
+        
+        // 방어 QTE 처리 추가
+        bool defenseTriggered = false;
+        if (isEnemy && !target.isEnemy)  // 적이 플레이어를 공격할 때만
+        {
+            if (target.ShouldTriggerDefenseQTE())
+            {
+                defenseTriggered = true;
+                yield return BattleManager.Instance.StartCoroutine(
+                    BattleManager.Instance.TriggerDefenseQTE(this, target));
+            }
+            else
+            {
+                // 방어 QTE가 발동하지 않았을 때 일반 공격
+                DealDamage(target);
+            }
+        }
+        else
+        {
+            // 플레이어가 적을 공격하는 경우 일반 공격
+            DealDamage(target);
+        }
         yield return new WaitForSeconds(0.7f);
 
         yield return StartCoroutine(ApplyStatusEffectsEndOfTurn());
@@ -168,7 +297,7 @@ public class Character : MonoBehaviour
         yield return StartCoroutine(WaitForAllDamageTexts());
 
         // 협공 QTE 발동 (플레이어 공격 후 + 타겟이 살아있을 때만)
-        if (!isEnemy && target.isAlive && BattleManager.Instance.ShouldTriggerFollowUpQTE())
+        if (!isEnemy && target.isAlive && BattleManager.Instance.ShouldTriggerFollowUpQTE(this))
         {
             yield return StartCoroutine(BattleManager.Instance.TriggerFollowUpQTE(this, target));
         }
@@ -180,8 +309,7 @@ public class Character : MonoBehaviour
             target.transform.position = target.originalPosition;
 
         ReduceSkillCooldowns();
-
-        BattleManager.Instance.UpdateAllCharacterUIs();
+        
         CameraManager.Instance.ZoomOut(0.3f);
     }
     
@@ -192,7 +320,9 @@ public class Character : MonoBehaviour
             if (skill.currentCooldown > 0)
                 skill.currentCooldown--;
         }
+        BattleManager.Instance.UpdateAllCharacterUIs();
     }
+    
     public IEnumerator WaitForAllDamageTexts()
     {
         float timeout = 2f;
@@ -208,7 +338,6 @@ public class Character : MonoBehaviour
         }
     }
 
-
     public void InsertSkillToQueue(Func<IEnumerator> skillAction)
     {
         Queue<Func<IEnumerator>> newQueue = new Queue<Func<IEnumerator>>();
@@ -221,12 +350,22 @@ public class Character : MonoBehaviour
 
         actionQueue = newQueue;
     }
-
+    
+// 상태이상 적용 메서드 (효과 누적 버전)
     public void ApplyStatusEffect(StatusEffectData statusEffect)
     {
         var existing = activeStatusEffects.Find(e => e.type == statusEffect.type);
         if (existing != null)
         {
+            // 기존 효과가 있을 경우, 효과를 누적
+        
+            // 효과 제거 (갱신 전 상태 초기화를 위해)
+            if (statusEffect.isBuff)
+            {
+                RemoveStatusEffectImpact(existing);
+            }
+        
+            // 기본적으로 효과의 위력과 스택을 누적
             existing.power += statusEffect.power;
             existing.stack += statusEffect.stack;
         
@@ -235,28 +374,63 @@ public class Character : MonoBehaviour
             {
                 existing.power = Mathf.Min(existing.power, 100);
             }
+        
+            // 버프면 효과 다시 적용
+            if (statusEffect.isBuff)
+            {
+                ApplyBuffEffect(existing);
+            }
         }
         else
         {
             // 새로 추가하는 경우 TeamworkUp 타입이면 제한
-            if (statusEffect.type == StatusEffectType.TeamworkUp)
-            {
-                statusEffect.power = Mathf.Min(statusEffect.power, 100);
-            }
-        
-            activeStatusEffects.Add(new StatusEffectData
+            StatusEffectData newEffect = new StatusEffectData
             {
                 type = statusEffect.type,
                 power = statusEffect.power,
                 stack = statusEffect.stack,
                 tickType = statusEffect.tickType,
                 isBuff = statusEffect.isBuff
-            });
+            };
+        
+            if (newEffect.type == StatusEffectType.TeamworkUp)
+            {
+                newEffect.power = Mathf.Min(newEffect.power, 100);
+            }
+        
+            activeStatusEffects.Add(newEffect);
+        
+            // 버프라면 즉시 효과 적용
+            if (statusEffect.isBuff)
+            {
+                ApplyBuffEffect(newEffect);
+            }
         }
 
         UpdateStatusEffectUI();
     }
 
+    // 상태이상 제거 메서드 (수정)
+    public void RemoveStatusEffect(StatusEffectType type)
+    {
+        StatusEffectData effect = GetStatusEffect(type);
+        
+        if (effect != null)
+        {
+            // 효과 제거
+            RemoveStatusEffectImpact(effect);
+            
+            // 상태이상 제거
+            activeStatusEffects.RemoveAll(e => e.type == type);
+            
+            // UI 갱신
+            UpdateStatusEffectUI();
+            
+            // 디버그 로그
+            Debug.Log($"{characterName}의 {type} 상태이상이 제거되었습니다.");
+        }
+    }
+    
     public IEnumerator ApplyStatusEffectsEndOfTurn()
     {
         List<StatusEffectData> expiredEffects = new List<StatusEffectData>();
@@ -266,8 +440,11 @@ public class Character : MonoBehaviour
             if (effect.tickType != StatusEffectTickType.EndOfTurn)
                 continue;
 
-            // ⭐ 상태이상 효과를 적용
-            yield return StartCoroutine(ApplyStatusEffectImpact(effect));
+            // 도트 데미지나 힐같은 효과 적용 (기존 로직)
+            if (!effect.isBuff)
+            {
+                yield return StartCoroutine(ApplyStatusEffectTick(effect));
+            }
 
             // 지속시간 감소
             effect.stack--;
@@ -276,6 +453,8 @@ public class Character : MonoBehaviour
                 expiredEffects.Add(effect);
             }
         }
+        
+        // UI 갱신
         UpdateStatusEffectUI();
 
         // 만료된 상태이상 제거
@@ -285,8 +464,8 @@ public class Character : MonoBehaviour
         }
     }
 
-    // 상태이상 효과 적용 메서드 확장
-    private IEnumerator ApplyStatusEffectImpact(StatusEffectData effect)
+    // 도트 데미지나 힐같은 효과를 처리하는 메서드 (기존 ApplyStatusEffectImpact 대체)
+    private IEnumerator ApplyStatusEffectTick(StatusEffectData effect)
     {
         switch (effect.type)
         {
@@ -307,48 +486,12 @@ public class Character : MonoBehaviour
                 ApplyShield(effect.power);
                 yield return new WaitForSeconds(0.3f);
                 break;
-            
-            case StatusEffectType.SpeedUp:
-            case StatusEffectType.TeamworkUp:
-                // 버프는 턴 종료 시 지속시간만 감소 (효과는 적용/제거 시점에 처리)
-                yield return new WaitForSeconds(0.1f);
-                break;
-            
+                
+            // 버프는 틱 당 효과가 없으므로 무시
             default:
                 yield return null;
                 break;
         }
-    }
-
-
-
-    // Character 클래스에 버프 제거 로직 추가
-    public void RemoveStatusEffect(StatusEffectType type)
-    {
-        var effect = GetStatusEffect(type);
-    
-        if (effect != null)
-        {
-            // 버프 효과 제거 처리
-            if (effect.isBuff)
-            {
-                switch (type)
-                {
-                    case StatusEffectType.SpeedUp:
-                        // 속도 증가 효과 제거
-                        atbSpeedMultiplier = Mathf.Max(1.0f, atbSpeedMultiplier - (effect.power / 100f));
-                        break;
-                    
-                    case StatusEffectType.TeamworkUp:
-                        // 협공 확률 증가 효과 제거
-                        BattleManager.Instance.DecreaseFollowUpChance(effect.power);
-                        break;
-                }
-            }
-        }
-        
-        activeStatusEffects.RemoveAll(e => e.type == type);
-        UpdateStatusEffectUI();
     }
 
     public bool HasStatusEffect(StatusEffectType type)
@@ -377,7 +520,7 @@ public class Character : MonoBehaviour
         transform.position = endPos;
     }
 
-// Character 클래스의 DealDamage 메서드 재정의 (더 강력하게)
+    // Character 클래스의 DealDamage 메서드 재정의 (더 강력하게)
     public void DealDamage(Character target)
     {
         // 기본 데미지 계산
@@ -464,7 +607,6 @@ public class Character : MonoBehaviour
         hp = Mathf.Max(hp, 0);
     }
 
-    
     public void ApplyHeal(int amount, StatusEffectType effectType)
     {
         var spawner = GetComponentInChildren<DamageTextSpawner>();
@@ -483,7 +625,4 @@ public class Character : MonoBehaviour
     {
         shieldAmount += amount;
     }
-
-    
-
 }

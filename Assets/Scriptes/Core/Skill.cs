@@ -118,66 +118,77 @@ public class Skill
         CameraManager.Instance.ZoomOut(0.3f);
     }
 
-    // ExecuteAttackPhases 메서드 수정
-    private IEnumerator ExecuteAttackPhases(Character caster, List<Character> targets)
+private IEnumerator ExecuteAttackPhases(Character caster, List<Character> targets)
+{
+    foreach (var phase in attackPhases)
     {
-        foreach (var phase in attackPhases)
+        // 각 타겟에 데미지와 효과 적용
+        foreach (var target in targets)
         {
-            // 각 타겟에 데미지와 효과 적용
-            foreach (var target in targets)
+            if (!target.isAlive) continue;
+
+            target.ApplyDamage(phase.damage, StatusEffectSource.DirectAttack);
+
+            if (phase.statusEffect != null && phase.statusEffect.type != StatusEffectType.None)
             {
-                if (!target.isAlive) continue;
-
-                target.ApplyDamage(phase.damage, StatusEffectSource.DirectAttack);
-
-                if (phase.statusEffect != null && phase.statusEffect.type != StatusEffectType.None)
-                {
-                    target.ApplyStatusEffect(phase.statusEffect);
-                }
-
-                if (phase.customEffect != null)
-                {
-                    phase.customEffect(target);
-                }
+                target.ApplyStatusEffect(phase.statusEffect);
             }
 
-            // QTE 처리 (타입 지정)
-            if (phase.requiresQTE)
+            // 기존 customEffect 처리 (여전히 void 반환)
+            if (phase.customEffect != null)
             {
-                bool qteSuccess = false;
-                bool qteCompleted = false;
-        
-                QTEManager.Instance.StartQTE(phase.qteType, (result) => {
-                    qteSuccess = result;
-                    qteCompleted = true;
-                });
-        
-                while (!qteCompleted)
-                    yield return null;
-        
-                if (!qteSuccess)
-                {
-                    LogManager.Instance.Log("QTE 실패로 스킬 중단");
-                
-                    // QTE 실패 즉시 초기화를 위한 콜백 호출
-                    if (onSkillEnd != null)
-                    {
-                        onSkillEnd(false);
-                    }
-                
-                    break;
-                }
-                else
-                {
-                    LogManager.Instance.Log("QTE 성공! 스킬 계속 진행");
-                }
+                phase.customEffect(target);
             }
 
-            yield return new WaitForSeconds(phase.delayAfterHit);
+            // 신규 customEffectCoroutine 처리 (IEnumerator 반환)
+            if (phase.customEffectCoroutine != null)
+            {
+                // 코루틴을 가져와서 완료될 때까지 기다림
+                IEnumerator coroutine = phase.customEffectCoroutine(target);
+                if (coroutine != null)
+                {
+                    yield return caster.StartCoroutine(coroutine);
+                }
+            }
         }
+
+        // QTE 처리 (타입 지정)
+        if (phase.requiresQTE)
+        {
+            bool qteSuccess = false;
+            bool qteCompleted = false;
     
-        yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
+            QTEManager.Instance.StartQTE(phase.qteType, (result) => {
+                qteSuccess = result;
+                qteCompleted = true;
+            });
+    
+            while (!qteCompleted)
+                yield return null;
+    
+            if (!qteSuccess)
+            {
+                LogManager.Instance.Log("QTE 실패로 스킬 중단");
+            
+                // QTE 실패 즉시 초기화를 위한 콜백 호출
+                if (onSkillEnd != null)
+                {
+                    onSkillEnd(false);
+                }
+            
+                break;
+            }
+            else
+            {
+                LogManager.Instance.Log("QTE 성공! 스킬 계속 진행");
+            }
+        }
+
+        yield return new WaitForSeconds(phase.delayAfterHit);
     }
+
+    yield return caster.StartCoroutine(caster.WaitForAllDamageTexts());
+}
     private bool SimulateQTE()
     {
         return Random.value < 0.8f;

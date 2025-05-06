@@ -30,7 +30,6 @@ public class BattleManager : MonoBehaviour
     private List<Character> allCharacters = new List<Character>();
         
     [Header("협공 QTE 설정")]
-    [SerializeField] private float followUpAttackChance = 0.1f; //
     [SerializeField] private Vector3 followUpAttackOffset = new Vector3(0, 2f, 0); // 협공 시 위치 오프셋
     
     public readonly Color[] playerColors = {
@@ -47,10 +46,13 @@ public class BattleManager : MonoBehaviour
         new Color(1f, 0.6f, 0.6f)
     };
     
-     public bool ShouldTriggerFollowUpQTE()
+// 정수 기반 확률 체크
+    public bool ShouldTriggerFollowUpQTE(Character attacker)
     {
-        return Random.value <= followUpAttackChance;
+        // 개별 캐릭터의 협공 확률 사용
+        return attacker.ShouldTriggerFollowUp();
     }
+
 // 대기 아군 협공 메서드
     public IEnumerator PerformWaitingAllyAssault(Character main, Character target)
     {
@@ -118,7 +120,8 @@ public class BattleManager : MonoBehaviour
             allies[i].transform.position = waitingBasePos + new Vector3(0f, -0.7f * i, 0f);
         }
     }
-// 지연된 랜덤 아군 협공 메서드
+    
+    // 지연된 랜덤 아군 협공 메서드
     public IEnumerator TriggerForcedAllyAssist(Character attacker, Character target)
     {
         // 덱 변경 중이면 즉시 중단
@@ -183,7 +186,81 @@ public class BattleManager : MonoBehaviour
     // 타겟 위치는 고정 플래그로 관리하므로 여기서 변경하지 않음
 }
 
+    public IEnumerator TriggerDefenseQTE(Character attacker, Character target)
+    {
+        bool qteResult = false;
+        bool qteCompleted = false;
     
+        // QTE 시작
+        QTEManager.Instance.StartQTE(QTEType.TimingButton, (result) => {
+            qteResult = result;
+            qteCompleted = true;
+        });
+    
+        // QTE 완료 대기
+        while (!qteCompleted)
+            yield return null;
+    
+        LogManager.Instance.Log($"방어 QTE {(qteResult ? "성공" : "실패")}");
+    
+        if (qteResult)
+        {
+            // 방어 성공 시 카운터 공격
+            yield return StartCoroutine(PerformCounterAttack(target, attacker));
+        }
+        else
+        {
+            // 방어 실패 시 원래 공격 진행
+            LogManager.Instance.Log($"{target.characterName}의 방어 실패!");
+            
+            Vector3 attackImpulse = (target.transform.position - attacker.transform.position).normalized * 0.5f;
+            yield return attacker.MoveToImpulse(attackImpulse, 0.2f);
+        
+            // 데미지 적용
+            attacker.DealDamage(target);
+        }
+    }
+
+
+    private IEnumerator PerformCounterAttack(Character defender, Character attacker)
+    {
+        LogManager.Instance.Log($"{defender.characterName}의 카운터 공격!");
+    
+        // 원래 위치 저장
+        Vector3 originalDefenderPos = defender.transform.position;
+        Vector3 originalAttackerPos = attacker.transform.position;
+    
+        // 카메라 흔들림 효과 (약간의 지연 후)
+        yield return new WaitForSeconds(0.1f);
+        CameraManager.Instance.Shake(0.2f, 0.1f);
+    
+        // 적을 튕겨내는 효과 표현
+        Vector3 knockbackDirection = (attacker.transform.position - defender.transform.position).normalized;
+        Vector3 knockbackTarget = attacker.transform.position + knockbackDirection * 1.5f;
+    
+        // 공격자 넉백
+        float knockbackDuration = 0.2f;
+        float elapsed = 0f;
+        while (elapsed < knockbackDuration)
+        {
+            elapsed += Time.deltaTime;
+            attacker.transform.position = Vector3.Lerp(originalAttackerPos, knockbackTarget, elapsed / knockbackDuration);
+            yield return null;
+        }
+    
+        // 데미지 적용 (방어자의 공격력 기준으로 데미지 계산)
+        int counterDamage = UnityEngine.Random.Range(3, 8); // 기본 카운터 데미지
+        attacker.ApplyDamage(counterDamage);
+    
+        // 효과 표시를 위한 대기
+        yield return new WaitForSeconds(0.5f);
+    
+        // 카운터 공격 후 방어자만 원래 위치로 복귀
+        defender.transform.position = originalDefenderPos;
+    
+        // 공격자는 넉백된 위치에 그대로 유지 (원래 위치로 돌아오지 않음)
+        // attacker.transform.position = originalAttackerPos; // 이 코드 제거
+    }
 // 랜덤 아군 선택해 협공시키는 메서드
 public IEnumerator TriggerRandomAllyAssault(Character main, Character target)
 {
@@ -259,18 +336,6 @@ public IEnumerator TriggerRandomAllyAssault(Character main, Character target)
                 yield return StartCoroutine(PerformFollowUpAttack(ally, target));
             }
         }
-    }
-    // 팀 전체 협공 확률 조정 메서드
-    public void IncreaseFollowUpChance(int percentage)
-    {
-        followUpAttackChance += percentage / 100f;
-        followUpAttackChance = Mathf.Min(followUpAttackChance, 1.0f); // 최대 100%로 제한
-    }
-    
-    public void DecreaseFollowUpChance(int percentage)
-    {
-        followUpAttackChance -= percentage / 100f;
-        followUpAttackChance = Mathf.Max(followUpAttackChance, 0.0f); // 최소 0%
     }
     
     // 연속 협공 실행 메서드

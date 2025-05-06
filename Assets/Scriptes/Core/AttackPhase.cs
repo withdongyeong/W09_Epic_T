@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 [System.Serializable]
@@ -10,4 +11,5 @@ public class AttackPhase
     public Action<Character> customEffect;     // ⭐️ 특수 행동 추가
     public float delayAfterHit = 0.3f;
     public QTEType qteType = QTEType.TimingButton;
+    public System.Func<Character, IEnumerator> customEffectCoroutine;
 }

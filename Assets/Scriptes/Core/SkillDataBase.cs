@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -104,70 +105,89 @@ public static class SkillDatabase
 
         return skill;
     }
-    public static Skill CreateShockFinishSkill(string name, int firstHitDamage, int repeatDamage, int repeatCount, int shockPower, int shockStack, int cooldownTurns)
+ public static Skill CreateShockFinishSkill(string name, int firstHitDamage, int repeatDamage, int repeatCount, int shockPower, int shockStack, int cooldownTurns)
+{
+    Skill skill = new Skill
     {
-        Skill skill = new Skill
-        {
-            skillName = name,
-            skillType = SkillType.Active,
-            cooldownTurns = cooldownTurns,
-            currentCooldown = 0
-        };
+        skillName = name,
+        skillType = SkillType.Active,
+        cooldownTurns = cooldownTurns,
+        currentCooldown = 0
+    };
 
-        // 첫 타: 감전 부여
+    // 첫 타: 감전 부여
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = firstHitDamage,
+        statusEffect = new StatusEffectData
+        {
+            type = StatusEffectType.Shock,
+            power = shockPower,
+            stack = shockStack,
+            tickType = StatusEffectTickType.OnHitTaken
+        },
+        requiresQTE = false,
+        delayAfterHit = 0.2f
+    });
+
+    // 서서히 빨라지는 연타 (2~6타)
+    for (int i = 0; i < 5; i++)
+    {
+        // 명시적인 float 변환으로 정확한 보간 확보
+        float progressRatio = (float)(i + 1) / 4f;
+        float delay = Mathf.Lerp(0.6f, 0.3f, progressRatio);
+    
         skill.attackPhases.Add(new AttackPhase
         {
-            damage = firstHitDamage,
-            statusEffect = new StatusEffectData
-            {
-                type = StatusEffectType.Shock,
-                power = shockPower,
-                stack = shockStack,
-                tickType = StatusEffectTickType.OnHitTaken
-            },
-            requiresQTE = false,
-            delayAfterHit = 0.6f
-        });
-
-        // 서서히 빨라지는 연타 (2~10타)
-        for (int i = 0; i < 9; i++)
-        {
-            float delay = Mathf.Lerp(0.6f, 0.3f, (i + 1) / 4f);
-        
-            skill.attackPhases.Add(new AttackPhase
-            {
-                damage = repeatDamage,
-                statusEffect = null,
-                requiresQTE = (i == 8), // 마지막 타격 후 QTE
-                qteType = (i == 8) ? QTEType.TapRapidly : QTEType.TimingButton,
-                delayAfterHit = delay
-            });
-        }
-
-        // 일정한 속도 빠른 연타 (11~27타)
-        for (int i = 0; i < 17; i++)
-        {
-            skill.attackPhases.Add(new AttackPhase
-            {
-                damage = repeatDamage,
-                statusEffect = null,
-                requiresQTE = (i == 16), // 마지막 타격 후 QTE
-                qteType = (i == 16) ? QTEType.TimingButton : QTEType.TimingButton,
-                delayAfterHit = 0.1f
-            });
-        }
-
-        // 마지막 타격
-        skill.attackPhases.Add(new AttackPhase
-        {
-            damage = repeatDamage * 2,
+            damage = repeatDamage,
             statusEffect = null,
-            requiresQTE = false,
-            delayAfterHit = 0.8f
+            requiresQTE = true,
+            qteType = QTEType.TimingButton,
+            delayAfterHit = delay
         });
-
-        return skill;
     }
+    
+    // 빠른 연타 (7~11타)
+    for (int i = 0; i < 5; i++)
+    {
+        bool isLastHit = (i == 4);
+        
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = repeatDamage,
+            statusEffect = null,
+            requiresQTE = isLastHit,
+            qteType = isLastHit ? QTEType.TapRapidly : QTEType.TimingButton,
+            delayAfterHit = 0.2f
+        });
+    }
+
+    // 일정한 속도 빠른 연타 (12~28타)
+    for (int i = 0; i < 17; i++)
+    {
+        bool isLastHit = (i == 16);
+        
+        skill.attackPhases.Add(new AttackPhase
+        {
+            damage = repeatDamage,
+            statusEffect = null,
+            requiresQTE = isLastHit,
+            qteType = QTEType.TimingButton, // 항상 타이밍 버튼
+            delayAfterHit = 0.1f
+        });
+    }
+
+    // 마지막 피니시 타격 (29타)
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = repeatDamage * 2,
+        statusEffect = null,
+        requiresQTE = false,
+        delayAfterHit = 0.8f
+    });
+
+    return skill;
+}
     
     public static Skill CreateBurnSkill(string name, int damage, int burnPower, int burnStack, int cooldownTurns, int hitCount = 1, bool isAreaAttack = false)
 {
@@ -220,10 +240,42 @@ public static class SkillDatabase
             },
             requiresQTE = true,
             qteType = QTEType.TimingButton,
+            delayAfterHit = 0.5f
+        });
+        
+        // 쾌감용 빌드업
+        for (int i = 0; i < 3; i++)
+        {
+            skill.attackPhases.Add(new AttackPhase
+            {
+                // 데미지는 없음 qte 용임
+                damage = 0,
+                requiresQTE = true,
+                qteType = QTEType.TimingButton,
+                delayAfterHit = 0.5f
+            });
+        }
+        
+        skill.attackPhases.Add(new AttackPhase
+        {
+            // 데미지는 없음 qte 용임
+            damage = 0,
+            requiresQTE = true,
+            qteType = QTEType.TimingButton,
             delayAfterHit = 1f
         });
+        
+        skill.attackPhases.Add(new AttackPhase
+        {
+            // 데미지는 없음 qte 용임
+            damage = 0,
+            requiresQTE = true,
+            qteType = QTEType.TimingButton,
+            delayAfterHit = 0.1f
+        });
+        
 
-        // 두 번째 타격
+        // 마지막 타격
         skill.attackPhases.Add(new AttackPhase
         {
             damage = 0,
@@ -340,25 +392,25 @@ public static Skill CreateTeamworkBuffSkill(string name, int damage, int teamwor
         delayAfterHit = 0.5f
     });
     
-    // 두 번째 페이즈: 전체 협공 확률 증가
+    // 두 번째 페이즈: 전체 협공 확률 증가 (상태이상 기반)
     skill.attackPhases.Add(new AttackPhase
     {
         damage = 0,
         requiresQTE = false,
         customEffect = (target) => {
-            // 팀 전체에 버프 효과 적용
-            BattleManager.Instance.IncreaseFollowUpChance(teamworkBoost);
-            
-            // 모든 아군에게 버프 상태이상 표시
+            LogManager.Instance.Log($"팀 전체 협공 확률이 {teamworkBoost}% 증가합니다!");
+        
+            // 모든 아군에게 상태이상으로 버프 적용
             foreach (var ally in BattleManager.Instance.playerTeam)
             {
                 if (ally.isAlive)
                 {
+                    // 상태이상으로 버프 적용 (ApplyStatusEffect 내에서 자동으로 협공 확률 증가)
                     ally.ApplyStatusEffect(new StatusEffectData
                     {
                         type = StatusEffectType.TeamworkUp,
-                        power = 100,
-                        stack = duration,
+                        power = teamworkBoost,  // 증가할 협공 확률
+                        stack = duration,       // 지속 턴수
                         tickType = StatusEffectTickType.EndOfTurn,
                         isBuff = true
                     });
@@ -390,7 +442,62 @@ public static Skill CreateBasicAttackSkill(string name, int damage, int cooldown
 
     return skill;
 }
-// 고급 연쇄 협공 스킬 구현 수정
+
+public static Skill CreateRandomAllyAssistSkill(string name, int damage, int cooldownTurns)
+{
+    var skill = new Skill
+    {
+        skillName = name,
+        skillType = SkillType.Active,
+        cooldownTurns = cooldownTurns,
+        attackPhases = new List<AttackPhase>()
+    };
+
+    // 공격 페이즈
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = damage,
+        requiresQTE = false,
+        delayAfterHit = 0.7f, // 길게 대기
+        // 기존 customEffect는 위치 고정 플래그만 설정
+        customEffect = (target) => {
+            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
+            if (caster != null && target.isAlive)
+            {
+                // 위치 고정 플래그
+                target.isUnderAssault = true;
+                caster.isUnderAssault = true;
+            }
+        },
+        // 새로운 customEffectCoroutine은 협공을 처리
+        customEffectCoroutine = (target) => {
+            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
+            if (caster != null && target.isAlive)
+            {
+                // 협공 코루틴을 반환
+                return BattleManager.Instance.TriggerForcedAllyAssist(caster, target);
+            }
+            return null;
+        }
+    });
+    
+    // 위치 초기화 페이즈
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = 0,
+        requiresQTE = false,
+        delayAfterHit = 0.1f,
+        customEffect = (target) => {
+            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
+            target.isUnderAssault = false;
+            if (caster != null) caster.isUnderAssault = false;
+        }
+    });
+
+    return skill;
+}
+
+// 고급 연쇄 협공 스킬 수정
 public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage, int finalDamage, int cooldownTurns)
 {
     var skill = new Skill
@@ -457,36 +564,47 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
             damage = Mathf.RoundToInt(baseDamage * 0.5f),
             requiresQTE = true,
             qteType = QTEType.TimingButton,
-            delayAfterHit = 0.5f,
-            customEffect = (target) => {
+            delayAfterHit = 0.2f,
+            // 기존 customEffect는 빈 상태로 두거나 제거
+            customEffect = null,
+            // 새로운 customEffectCoroutine은 협공을 처리
+            customEffectCoroutine = (target) => {
                 Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
                 if (caster != null && target.isAlive)
                 {
-                    // 대기 아군 중 랜덤 선택
-                    BattleManager.Instance.StartCoroutine(
-                        BattleManager.Instance.PerformWaitingAllyAssault(caster, target)
-                    );
+                    return BattleManager.Instance.PerformWaitingAllyAssault(caster, target);
                 }
+                return null;
             }
         });
     }
+    
+    // 연타 QTE
+    skill.attackPhases.Add(new AttackPhase
+    {
+        damage = Mathf.RoundToInt(baseDamage * 0.5f),
+        requiresQTE = true,
+        qteType = QTEType.TapRapidly,
+        delayAfterHit = 0.3f,
+    });
+    
     
     // 연타 QTE 구간 (성공 시 빠른 연속 협공 발동)
     skill.attackPhases.Add(new AttackPhase
     {
         damage = Mathf.RoundToInt(baseDamage * 0.5f),
-        requiresQTE = true,
-        qteType = QTEType.TapRapidly,  // 연타 QTE
+        requiresQTE = false,
         delayAfterHit = 0.3f,
-        customEffect = (target) => {
+        // 기존 customEffect는 빈 상태로 두거나 제거
+        customEffect = null,
+        // 새로운 customEffectCoroutine은 협공을 처리
+        customEffectCoroutine = (target) => {
             Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
             if (caster != null && target.isAlive)
             {
-                // 연속 공격 트리거
-                BattleManager.Instance.StartCoroutine(
-                    BattleManager.Instance.PerformRapidTeamAssault(caster, target, 10)
-                );
+                return BattleManager.Instance.PerformRapidTeamAssault(caster, target, 10);
             }
+            return null;
         }
     });
     
@@ -506,7 +624,7 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
         requiresQTE = false,   // QTE는 이미 앞에서 처리
         delayAfterHit = 2f,
         customEffect = (target) => {
-            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
+            // 필요한 로직 추가
         }
     });
     
@@ -523,54 +641,7 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
 
     return skill;
 }
-// 랜덤 협공 스킬 수정 - 협공 완료 기다리기
-public static Skill CreateRandomAllyAssistSkill(string name, int damage, int cooldownTurns)
-{
-    var skill = new Skill
-    {
-        skillName = name,
-        skillType = SkillType.Active,
-        cooldownTurns = cooldownTurns,
-        attackPhases = new List<AttackPhase>()
-    };
 
-    // 공격 페이즈
-    skill.attackPhases.Add(new AttackPhase
-    {
-        damage = damage,
-        requiresQTE = false,
-        delayAfterHit = 1.5f, // 길게 대기
-        customEffect = (target) => {
-            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
-            if (caster != null && target.isAlive)
-            {
-                // 위치 고정 플래그
-                target.isUnderAssault = true;
-                caster.isUnderAssault = true;
-                
-                // 협공 트리거
-                BattleManager.Instance.StartCoroutine(
-                    BattleManager.Instance.TriggerForcedAllyAssist(caster, target)
-                );
-            }
-        }
-    });
-    
-    // 위치 초기화 페이즈
-    skill.attackPhases.Add(new AttackPhase
-    {
-        damage = 0,
-        requiresQTE = false,
-        delayAfterHit = 0.1f,
-        customEffect = (target) => {
-            Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
-            target.isUnderAssault = false;
-            if (caster != null) caster.isUnderAssault = false;
-        }
-    });
-
-    return skill;
-}
 // 자신 속도 대폭 증가 + 아군 협공 확률 증가 스킬
 public static Skill CreateSelfSpeedTeamworkBuffSkill(string name, int speedBoost, int teamworkBoost, int duration, int cooldownTurns)
 {
@@ -592,7 +663,9 @@ public static Skill CreateSelfSpeedTeamworkBuffSkill(string name, int speedBoost
             Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
             if (caster != null && caster.isAlive)
             {
-                // 1. 자신 속도 대폭 증가
+                LogManager.Instance.Log($"{caster.characterName}(이)가 {name} 스킬을 사용했습니다!");
+                
+                // 1. 자신 속도 대폭 증가 (상태이상만 적용하고 직접 값은 변경하지 않음)
                 caster.ApplyStatusEffect(new StatusEffectData
                 {
                     type = StatusEffectType.SpeedUp,
@@ -602,15 +675,12 @@ public static Skill CreateSelfSpeedTeamworkBuffSkill(string name, int speedBoost
                     isBuff = true
                 });
                 
-                caster.atbSpeedMultiplier += speedBoost / 100f;
+                LogManager.Instance.Log($"{caster.characterName}의 속도가 {speedBoost}% 증가했습니다!");
                 
-                // 2. 전체 팀 협공 확률 증가
-                BattleManager.Instance.IncreaseFollowUpChance(teamworkBoost);
-                
-                // 모든 아군에게 상태이상 표시
+                // 2. 전체 팀 협공 확률 증가 (각 아군 캐릭터에게 개별적으로 버프 적용)
                 foreach (var ally in BattleManager.Instance.playerTeam)
                 {
-                    if (ally != caster && ally.isAlive)
+                    if (ally.isAlive)
                     {
                         ally.ApplyStatusEffect(new StatusEffectData
                         {
@@ -620,7 +690,7 @@ public static Skill CreateSelfSpeedTeamworkBuffSkill(string name, int speedBoost
                             tickType = StatusEffectTickType.EndOfTurn,
                             isBuff = true
                         });
-                    }
+                        }
                 }
             }
         },

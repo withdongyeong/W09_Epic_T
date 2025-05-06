@@ -5,25 +5,25 @@ using UnityEngine.UI;
 public class TimingButtonUI
 {
     public Button mainButton;         // 메인 버튼
-    public Image timerImage;          // 타이밍 시각화용 이미지
-    public Color failColor = new Color(1f, 0.25f, 0.21f); // #FF4136 (빨강)
-    public Color warningColor = new Color(1f, 0.86f, 0f); // #FFDC00 (노랑)
-    public Color successColor = new Color(0.18f, 0.8f, 0.25f); // #2ECC40 (초록)
+    public Image clockHand;           // 시계 바늘 이미지
+    public Image successZone;         // 성공 구간 이미지
+    public Image failZone;            // 실패 구간 이미지
 }
 
 public class QTEUITimingButton : QTEUIBase
 {
     [SerializeField] private TimingButtonUI ui;
+    
     [Header("키보드 설정")]
     [SerializeField] private KeyCode triggerKey = KeyCode.Space; // 스페이스 키 기본값으로 설정
     
     [Header("타이밍 설정")]
-    private float initialScale = 3f;      // 시작 시 테두리 크기
-    private float duration = 0.5f;          // QTE 지속 시간
-    private float successTiming = 0.9f;   // 성공 타이밍 (0.9 = 90%, 거의 끝날 때)
-    private float successWindow = 0.1f;   // 성공 허용 범위
+    [SerializeField] private float duration = 0.5f;          // QTE 지속 시간 (초)
+    [SerializeField] private float successStartTime = 0.4f;  // 성공 시작 시간 (초)
+    [SerializeField] private float successEndTime = 0.5f;    // 성공 종료 시간 (초)
     
-    private float currentTime;
+    private float startTime;          // QTE 시작 시간
+    private float currentTime;        // 현재 진행 시간
     private bool isActive;
 
     private void Awake()
@@ -34,9 +34,11 @@ public class QTEUITimingButton : QTEUIBase
     public override void StartQTE(System.Action<bool> onCompleteCallback)
     {
         base.StartQTE(onCompleteCallback);
+        startTime = Time.time;        // 시작 시간 기록
         currentTime = 0f;
         isActive = true;
         ResetVisuals();
+        SetupSuccessZones();
         gameObject.SetActive(true);
     }
 
@@ -44,46 +46,26 @@ public class QTEUITimingButton : QTEUIBase
     {
         if (!isActive) return;
         
-        currentTime += Time.deltaTime;
+        // 절대 시간으로 진행 시간 계산
+        currentTime = Time.time - startTime;
         float progress = Mathf.Clamp01(currentTime / duration);
         
-        // 타이머 이미지 크기 업데이트 (3배 크기에서 1배 크기로)
-        float scale = Mathf.Lerp(initialScale, 1f, progress);
-        ui.timerImage.transform.localScale = Vector3.one * scale;
+        // 시계 바늘 회전 업데이트 (0도에서 360도까지)
+        float rotationAngle = progress * 360f;
+        ui.clockHand.rectTransform.rotation = Quaternion.Euler(0, 0, -rotationAngle);
         
-        // 진행 상황에 따라 색상 변경
-        UpdateColor(progress);
-        
-        // 키보드 입력 감지 추가
+        // 키보드 입력 감지
         if (Input.GetKeyDown(triggerKey))
         {
-            CheckSuccess(progress);
+            CheckSuccess();
         }
         
-        // 시간 초과 시 실패
-        if (progress >= 1f)
+        // 시간 초과 시 명시적 실패 처리
+        // 버튼 사라지기 직전 여유분 시간 존재 (0.1)
+        if (currentTime >= duration + 0.1f)
         {
-            CheckSuccess(progress);
-        }
-    }
-    
-    private void UpdateColor(float progress)
-    {
-        // 성공 타이밍으로 단방향 진행 (빨강->노랑->초록)
-        if (progress < successTiming - successWindow)
-        {
-            // 아직 타이밍 아님
-            ui.timerImage.color = ui.failColor;
-        }
-        else if (progress < successTiming - (successWindow * 0.5f))
-        {
-            // 접근 중 (노랑)
-            ui.timerImage.color = ui.warningColor;
-        }
-        else
-        {
-            // 성공 타이밍 (초록)
-            ui.timerImage.color = ui.successColor;
+            CompleteQTE(false); // 명시적으로 실패로 처리
+            isActive = false;
         }
     }
     
@@ -95,19 +77,45 @@ public class QTEUITimingButton : QTEUIBase
     
     private void ResetVisuals()
     {
-        ui.timerImage.transform.localScale = Vector3.one * initialScale;
-        ui.timerImage.color = ui.failColor;
+        // 시계 바늘을 시작 위치(0도)로 설정
+        ui.clockHand.rectTransform.rotation = Quaternion.Euler(0, 0, 0);
+    }
+    
+    private void SetupSuccessZones()
+    {
+        // 성공 구간 비율 계산 (시각화용)
+        float successStartRatio = successStartTime / duration;
+        float successStartAngle = successStartRatio * 360f;
+        
+        // 성공 구간 시각화
+        ui.successZone.gameObject.SetActive(true);
+        ui.failZone.gameObject.SetActive(true);
+        
+        // 성공 구간 설정
+        ui.successZone.fillMethod = Image.FillMethod.Radial360;
+        ui.successZone.fillOrigin = (int)Image.Origin360.Top; // 12시 위치가 기준점
+        ui.successZone.fillClockwise = false; // 반시계 방향으로 채움
+        ui.successZone.fillAmount = (360f - successStartAngle) / 360f; // 시각적으로 표시
+        
+        // 실패 구간 설정
+        ui.failZone.fillMethod = Image.FillMethod.Radial360;
+        ui.failZone.fillOrigin = (int)Image.Origin360.Top; // 12시 위치가 기준점
+        ui.failZone.fillClockwise = true; // 시계 방향으로 채움
+        ui.failZone.fillAmount = successStartAngle / 360f; // 시각적으로 표시
     }
     
     private void OnButtonClick()
     {
         if (!isActive) return;
-        CheckSuccess(currentTime / duration);
+        CheckSuccess();
     }
     
-    private void CheckSuccess(float progress) {
-        float successStart = 0.75f; // 75% 지점
-        bool isSuccess = (progress >= successStart && progress < 0.999f);
+    private void CheckSuccess()
+    {
+        // 절대 시간 기반 성공 여부 판단
+        float elapsedTime = Time.time - startTime;
+        // 사라지기 직전 여유분 시간 존재 (0.1)
+        bool isSuccess = (elapsedTime >= successStartTime && elapsedTime <= successEndTime + 0.1);
         
         CompleteQTE(isSuccess);
         isActive = false;
