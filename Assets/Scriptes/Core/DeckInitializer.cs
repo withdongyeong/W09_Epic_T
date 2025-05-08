@@ -70,8 +70,8 @@ public static class DeckInitializer
             c.isEnemy = false;
             manager.playerTeam.Add(c);
 
-            manager.SetupCharacterIcon(c, manager.playerColors[i]);
-            manager.SetupATBIcon(c, manager.playerColors[i]);
+            manager._characterSetupManager.SetupCharacterIcon(c, manager.playerColors[i]);
+            manager._characterSetupManager.SetupATBIcon(c, manager.playerColors[i]);
 
             AssignSkills(c, deckType, i);
         }
@@ -79,17 +79,23 @@ public static class DeckInitializer
 
     private static void AssignSkills(Character c, string deckType, int index)
     {
+        // 임시 리스트를 생성하여 기존 스킬을 저장할 준비
+        List<Skill> originalSkills = new List<Skill>();
+        
+        // 기본 스킬 (쿨타임 0) 먼저 추가
+        Skill basicSkill = SkillDatabase.CreateBasicAttackSkill("기본 공격", 3, 0);
+        
         if (deckType == "Poison")
         {
             if (index == 0)
             {
-                c.skills.Add(SkillDatabase.CreatePoisonSkill("단일중독(약)", 5, 3, 3, 2));
-                c.skills.Add(SkillDatabase.CreatePoisonSkill("단일중독(강)", 8, 5, 1, 3));
+                originalSkills.Add(SkillDatabase.CreatePoisonSkill("단일중독(약)", 5, 3, 3, 2));
+                originalSkills.Add(SkillDatabase.CreatePoisonSkill("단일중독(강)", 8, 5, 1, 3));
             }
             else if (index == 1)
             {
-                c.skills.Add(SkillDatabase.CreatePoisonSkill("단일중독(약)", 4, 2, 4, 2));
-                c.skills.Add(SkillDatabase.CreatePoisonSkill("단일중독(강)", 6, 4, 2, 3));
+                originalSkills.Add(SkillDatabase.CreatePoisonSkill("단일중독(약)", 4, 2, 4, 2));
+                originalSkills.Add(SkillDatabase.CreatePoisonSkill("단일중독(강)", 6, 4, 2, 3));
             }
             else if (index == 2)
             {
@@ -97,23 +103,23 @@ public static class DeckInitializer
                 skill1.isAreaAttack = true;
                 var skill2 = SkillDatabase.CreatePoisonSkill("광역중독(강)", 6, 5, 2, 4);
                 skill2.isAreaAttack = true;
-                c.skills.Add(skill1);
-                c.skills.Add(skill2);
+                originalSkills.Add(skill1);
+                originalSkills.Add(skill2);
             }
             else if (index == 3)
             {
                 var skill1 = SkillDatabase.CreatePoisonSkill("광역중독(약)", 4, 3, 2, 2);
                 skill1.isAreaAttack = true;
-                c.skills.Add(skill1);
-                c.skills.Add(SkillDatabase.CreatePoisonFinishSkill("독 압축 폭발", 7, 15, 4));
+                originalSkills.Add(skill1);
+                originalSkills.Add(SkillDatabase.CreatePoisonFinishSkill("독 압축 폭발", 7, 15, 4));
             }
         }
         else if (deckType == "Shock")
         {
             if (index == 0)
             {
-                c.skills.Add(SkillDatabase.CreateShockSkill("단일감전(약)", 3, 2, 1, 1, 2));
-                c.skills.Add(SkillDatabase.CreateShockSkill("단일감전(강)", 4, 2, 1, 2, 3));
+                originalSkills.Add(SkillDatabase.CreateShockSkill("단일감전(약)", 3, 2, 1, 1, 2));
+                originalSkills.Add(SkillDatabase.CreateShockSkill("단일감전(강)", 4, 2, 1, 2, 3));
             }
             else if (index == 1)
             {
@@ -121,73 +127,80 @@ public static class DeckInitializer
                 skill1.isAreaAttack = true;
                 var skill2 = SkillDatabase.CreateShockSkill("광역감전(강)", 3, 2, 2, 3, 4);
                 skill2.isAreaAttack = true;
-                c.skills.Add(skill1);
-                c.skills.Add(skill2);
+                originalSkills.Add(skill1);
+                originalSkills.Add(skill2);
             }
             else if (index == 2)
             {
-                c.skills.Add(SkillDatabase.CreateShockSkill("단일감전(다타)", 2, 3, 3, 2, 2));
+                originalSkills.Add(SkillDatabase.CreateShockSkill("단일감전(다타)", 2, 3, 3, 2, 2));
                 var skill2 = SkillDatabase.CreateShockSkill("광역감전(다타)", 2, 3, 3, 3, 4);
                 skill2.isAreaAttack = true;
-                c.skills.Add(skill2);
+                originalSkills.Add(skill2);
             }
             else if (index == 3)
             {
                 var skill1 = SkillDatabase.CreateShockSkill("광역감전 연격", 2, 5, 1, 5, 3);
                 skill1.isAreaAttack = true;
-                c.skills.Add(skill1);
-                c.skills.Add(SkillDatabase.CreateShockFinishSkill("감전 30연격", 3, 1, 29, 1, 5, 4));
+                originalSkills.Add(skill1);
+                originalSkills.Add(SkillDatabase.CreateShockFinishSkill("감전 30연격", 3, 1, 29, 1, 5, 4));
             }
         }
         else if (deckType == "Burn")
         {
             if (index < 3)
             {
-                c.skills.Add(SkillDatabase.CreateBurnSkill("단일화상", 4, 2, 3, 2));
-                c.skills.Add(SkillDatabase.CreateBurnSkill("광역화상", 3, 1, 4, 3, 1, true));
+                originalSkills.Add(SkillDatabase.CreateBurnSkill("단일화상", 4, 2, 3, 2));
+                originalSkills.Add(SkillDatabase.CreateBurnSkill("광역화상", 3, 1, 4, 3, 1, true));
             }
             else
             {
-                c.skills.Add(SkillDatabase.CreateBurnSkill("광역화상", 3, 2, 3, 3, 1,true));
-                c.skills.Add(SkillDatabase.CreateBurnFinishSkill("화상폭발", 5, 2, 5));
+                originalSkills.Add(SkillDatabase.CreateBurnSkill("광역화상", 3, 2, 3, 3, 1,true));
+                originalSkills.Add(SkillDatabase.CreateBurnFinishSkill("화상폭발", 5, 2, 5));
             }
         }
-        
-   
         else if (deckType == "Teamwork")
         {
             if (index == 0) // 첫 번째 캐릭터: 강력한 평타 + 랜덤 아군 협공
             {
                 // 패시브 스킬: 평타 공격력 대폭 강화
-                c.skills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 50%강화", 50));
+                originalSkills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 50%강화", 50));
         
                 // 액티브 스킬: 랜덤 아군 협공
-                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 7, 3));
+                originalSkills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 7, 3));
             }
             else if (index == 1) // 두 번째 캐릭터: 강력한 평타 + 랜덤 아군 협공
             {
                 // 패시브 스킬: 평타 공격력 대폭 강화
-                c.skills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 70%강화", 60));
+                originalSkills.Add(PassiveSkillDatabase.CreateAttackBoostPassive("P:평타 70%강화", 60));
         
                 // 액티브 스킬: 랜덤 아군 협공
-                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 8, 3));
+                originalSkills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 8, 3));
             }
             else if (index == 2) // 세 번째 캐릭터: 강력한 평타 + 팀 속도 증가
             {
                 // 패시브 스킬: 평타 공격력 강화
-                c.skills.Add(PassiveSkillDatabase.CreateDoubleAttackPassive("P:평타 100% 2대", 100));
+                originalSkills.Add(PassiveSkillDatabase.CreateDoubleAttackPassive("P:평타 100% 2대", 100));
         
                 // 액티브 스킬: 랜덤 아군 협공
-                c.skills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 10, 3));
+                originalSkills.Add(SkillDatabase.CreateRandomAllyAssistSkill("랜덤 협공", 10, 3));
             }
             else // 피니시 캐릭터: 1번 속도/협공 버프, 2번 QTE 연속 협공
             {
                 // 1번 스킬: 자신 속도 대폭 증가 + 아군 협공 확률 증가
-                c.skills.Add(SkillDatabase.CreateSelfSpeedTeamworkBuffSkill("선봉 돌격", 200, 100, 5, 3));
+                originalSkills.Add(SkillDatabase.CreateSelfSpeedTeamworkBuffSkill("선봉 돌격", 200, 100, 5, 3));
         
                 // 2번 스킬: QTE 연속 협공
-                c.skills.Add(SkillDatabase.CreateAdvancedChainAssaultSkill("연쇄 협공", 10, 10, 4));
+                originalSkills.Add(SkillDatabase.CreateAdvancedChainAssaultSkill("연쇄 협공", 10, 10, 4));
             }
+        }
+
+        // 1번 스킬에 기본 스킬 추가
+        c.skills.Add(basicSkill);
+        
+        // 기존 스킬들을 2번, 3번 슬롯으로 추가
+        foreach (var skill in originalSkills)
+        {
+            c.skills.Add(skill);
         }
     }
 
@@ -205,8 +218,8 @@ public static class DeckInitializer
             e.isEnemy = true;
             manager.enemyTeam.Add(e);
 
-            manager.SetupCharacterIcon(e, manager.enemyColors[i]);
-            manager.SetupATBIcon(e, manager.enemyColors[i]);
+            manager._characterSetupManager.SetupCharacterIcon(e, manager.enemyColors[i]);
+            manager._characterSetupManager.SetupATBIcon(e, manager.enemyColors[i]);
         }
     }
 }

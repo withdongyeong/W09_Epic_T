@@ -277,7 +277,7 @@ public class Character : MonoBehaviour
             {
                 defenseTriggered = true;
                 yield return BattleManager.Instance.StartCoroutine(
-                    BattleManager.Instance.TriggerDefenseQTE(this, target));
+                    BattleManager.Instance._defenseManager.TriggerDefenseQTE(this, target));
             }
             else
             {
@@ -297,9 +297,9 @@ public class Character : MonoBehaviour
         yield return StartCoroutine(WaitForAllDamageTexts());
 
         // 협공 QTE 발동 (플레이어 공격 후 + 타겟이 살아있을 때만)
-        if (!isEnemy && target.isAlive && BattleManager.Instance.ShouldTriggerFollowUpQTE(this))
+        if (!isEnemy && target.isAlive && BattleManager.Instance._assaultManager.ShouldTriggerFollowUpQTE(this))
         {
-            yield return StartCoroutine(BattleManager.Instance.TriggerFollowUpQTE(this, target));
+            yield return StartCoroutine(BattleManager.Instance._assaultManager.TriggerFollowUpQTE(this, target));
         }
         
         if (!isUnderAssault)
@@ -320,7 +320,7 @@ public class Character : MonoBehaviour
             if (skill.currentCooldown > 0)
                 skill.currentCooldown--;
         }
-        BattleManager.Instance.UpdateAllCharacterUIs();
+        BattleManager.Instance._characterSetupManager.UpdateAllCharacterUIs();
     }
     
     public IEnumerator WaitForAllDamageTexts()

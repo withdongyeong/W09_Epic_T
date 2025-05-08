@@ -475,7 +475,7 @@ public static Skill CreateRandomAllyAssistSkill(string name, int damage, int coo
             if (caster != null && target.isAlive)
             {
                 // 협공 코루틴을 반환
-                return BattleManager.Instance.TriggerForcedAllyAssist(caster, target);
+                return BattleManager.Instance._assaultManager.TriggerForcedAllyAssist(caster, target);
             }
             return null;
         }
@@ -551,7 +551,7 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
                 }
                 
                 // 초기 배치
-                BattleManager.Instance.PrepareAssaultPositions(caster, allAllies);
+                BattleManager.Instance._assaultManager.PrepareAssaultPositions(caster, allAllies);
             }
         }
     });
@@ -572,7 +572,7 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
                 Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
                 if (caster != null && target.isAlive)
                 {
-                    return BattleManager.Instance.PerformWaitingAllyAssault(caster, target);
+                    return BattleManager.Instance._assaultManager.PerformWaitingAllyAssault(caster, target);
                 }
                 return null;
             }
@@ -602,7 +602,7 @@ public static Skill CreateAdvancedChainAssaultSkill(string name, int baseDamage,
             Character caster = BattleManager.Instance.playerTeam.Find(c => c.skills.Contains(skill));
             if (caster != null && target.isAlive)
             {
-                return BattleManager.Instance.PerformRapidTeamAssault(caster, target, 10);
+                return BattleManager.Instance._assaultManager.PerformRapidTeamAssault(caster, target, 10);
             }
             return null;
         }

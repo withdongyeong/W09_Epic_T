@@ -41,7 +41,7 @@ public class Skill
         }
 
         currentCooldown = cooldownTurns;
-        BattleManager.Instance.UpdateAllCharacterUIs();
+        BattleManager.Instance._characterSetupManager.UpdateAllCharacterUIs();
         
         // 스킬 종료 콜백 실행
         if (onSkillEnd != null)
